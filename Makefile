@@ -15,7 +15,7 @@ COMMON_FLAGS := -Wall -Wextra -Os -flto -mmcu=atmega2560
 DEFINES := -DF_CPU=16000000UL -DARDUINO=10813 -DARDUINO_AVR_MEGA2560
 DEFINES += -DBAUD=9600
 
-INCDIRS := -I($(AVR_TOOLS)/lib/gcc/avr/7.3.0/include -I$(AVR_TOOLS)/avr/include
+INCDIRS := -I$(AVR_TOOLS)/avr/include
 
 OBJECTS := $(patsubst %.c, %.o, $(C_SRC))
 OBJECTS += $(patsubst %.cc, %.o, $(CXX_SRC))
@@ -30,7 +30,7 @@ CC := $(AVR_TOOLS)/bin/avr-g++
 CXX := $(AVR_TOOLS)/bin/avr-g++
 CFLAGS := $(COMMON_FLAGS) -w -ffunction-sections -fdata-sections -fno-exceptions
 CFLAGS += $(DEFINES) $(INCDIRS)
-CXXFLAGS := -std=c++17
+CXXFLAGS := $(CFLAGS) -std=c++17
 
 all: $(BINARY)
 

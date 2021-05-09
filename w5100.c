@@ -52,10 +52,10 @@ uint8_t w5100_read_byte(uint16_t addr) {
    /* Assert SS */
    PORTB &= ~_BV(PB4);
 
-   spi_rw(W5100_SPI_READ);
-   spi_rw(addr >> 8);
-   spi_rw(addr & 0xff);
-   data = spi_rw(0);
+   Spi::ReadWrite(W5100_SPI_READ);
+   Spi::ReadWrite(addr >> 8);
+   Spi::ReadWrite(addr & 0xff);
+   data = Spi::ReadWrite(0);
 
    /* Deassert SS */
    PORTB |= _BV(PB4);
@@ -67,10 +67,10 @@ void w5100_write_byte(uint16_t addr, uint8_t data) {
    /* Assert SS */
    PORTB &= ~_BV(PB4);
 
-   spi_rw(W5100_SPI_WRITE);
-   spi_rw(addr >> 8);
-   spi_rw(addr & 0xff);
-   spi_rw(data);
+   Spi::ReadWrite(W5100_SPI_WRITE);
+   Spi::ReadWrite(addr >> 8);
+   Spi::ReadWrite(addr & 0xff);
+   Spi::ReadWrite(data);
 
    /* Deassert SS */
    PORTB |= _BV(PB4);

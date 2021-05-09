@@ -1,5 +1,3 @@
-#include <stddef.h>
-#include <avr/io.h>
 #include <avr/interrupt.h>
 
 #include "cmdline.h"
@@ -10,7 +8,7 @@
 #include "w5100.h"
 
 int main(void) {
-   spi_init();
+   Spi::Init();
    timer_init();
    usart_init();
 

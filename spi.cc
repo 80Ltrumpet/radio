@@ -1,9 +1,8 @@
+#include "spi.h"
+
 #include <avr/io.h>
 
-#include "spi.h"
-#include "usart.h"
-
-void spi_init(void) {
+void Spi::Init() {
    /* Set SS as high output */
    PORTB |= _BV(PB0);
    DDRB |= _BV(DDB0);
@@ -15,7 +14,7 @@ void spi_init(void) {
    DDRB |= _BV(PB1) | _BV(PB2);
 }
 
-uint8_t spi_rw(uint8_t data) {
+uint8_t Spi::ReadWrite(uint8_t data) {
    SPDR = data;
    while (!(SPSR & _BV(SPIF)))
       ;
