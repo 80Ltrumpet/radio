@@ -1,0 +1,13 @@
+{
+    "makefile.extensionOutputFolder": "./.vscode",
+    "makefile.additionalCompilerNames": [
+        "avr-g\\+\\+",
+        "avr-gcc"
+    ],
+    "C_Cpp.default.compilerPath": "C:/Program Files (x86)/Arduino/hardware/tools/avr/bin/avr-g++.exe",
+    "C_Cpp.default.defines": ["F_CPU=16000000UL", "BAUD=9600"],
+    "C_Cpp.default.forcedInclude": [
+        "C:/Program Files (x86)/Arduino/hardware/tools/avr/avr/include/avr/iom2560.h"
+    ],
+    "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
+}
