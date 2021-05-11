@@ -1,5 +1,4 @@
-#ifndef _NET_H
-#define _NET_H
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -31,5 +30,3 @@ void net_sock_close(uint8_t sock);
 size_t net_send(uint8_t sock, uint32_t haddr, uint16_t hport, void *data,
       size_t datalen);
 size_t net_recv(uint8_t sock, udp_header_t *header, void *buf, size_t bufsize);
-
-#endif

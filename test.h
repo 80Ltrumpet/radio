@@ -1,6 +1,3 @@
-#ifndef _TEST_H
-#define _TEST_H
+#pragma once
 
 void test_cmd(int argc, const char *argv[]);
-
-#endif

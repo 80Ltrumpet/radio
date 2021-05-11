@@ -1,5 +1,4 @@
-#ifndef _CMDLINE_H
-#define _CMDLINE_H
+#pragma once
 
 /**
  * Initializes static variables necessary to operate the command line.
@@ -20,6 +19,7 @@ void cmdline_init(void);
  */
 int cmdline_get_input(const char *prompt, char **line);
 
+// This should be internal to this module (static).
 /**
  * Turns a command line into a standard argument vector.
  * @param [in]  cmd  - The null-terminated command string to process.
@@ -37,5 +37,3 @@ int cmdline_get_argv(char *cmd, int argvlen, const char *argv[]);
  * Cooperatively scheduled task that operates the command line.
  */
 void cmdline_task(void *arg);
-
-#endif

@@ -1,24 +1,17 @@
 #include <avr/interrupt.h>
 
-#include "cmdline.h"
-#include "sched.h"
-#include "spi.h"
+#include "console.h"
 #include "timer.h"
-#include "usart.h"
-#include "w5100.h"
 
-int main(void) {
-   Spi::Init();
-   timer_init();
-   usart_init();
+int main() {
+   Timer::Init();
+   Console::Init();
 
    sei();
 
-   w5100_init();
-   cmdline_init();
-
-   while (1)
-      scheduler();
+   for (;;) {
+      //scheduler();
+   }
 
    return 0;
 }

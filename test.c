@@ -1,5 +1,4 @@
 #include "test.h"
-#include "printf.h"
 
 #define INCLUDE_TESTS
 #ifdef INCLUDE_TESTS

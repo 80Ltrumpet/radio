@@ -1,0 +1,26 @@
+{
+    "env": {
+        "avrRoot": "C:/Arduino/hardware/tools/avr"
+    },
+    "configurations": [
+        {
+            "name": "Win32",
+            "compilerPath": "${avrRoot}/bin/avr-g++",
+            "compilerArgs": ["-mmcu=atmega2560"],
+            "defines": [
+                "F_CPU=16000000UL",
+                "ARDUINO=10813",
+                "ARDUINO_AVR_MEGA2560",
+                "BAUD=9600"
+            ],
+            "includePath": [
+                "${default}",
+                "${avrRoot}/avr/include",
+                "${avrRoot}/lib/gcc/avr/7.3.0/include"
+            ],
+            "windowsSdkVersion": "10.0.18362.0",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

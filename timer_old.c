@@ -1,17 +1,20 @@
+#if 0 // Just using this for reference for a bit.
+#include "timer.h"
+
+#include <stdint.h>
+#include <stdio.h>
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#include "printf.h"
-#include "string.h"
-
-#define TIMER_MAX_CONFIGS     5
-#define TIMER_F_TICK_DEFAULT  1000UL
+static constexpr uint8_t kNumTimerConfigs = 6;
+static constexpr unsigned long kDefaultTickFrequency = 1000UL;
 
 /*
  * These clock shifts correspond to the oscillator prescaler values defined
  * in the ATmega2560 datasheet (1/1, 1/8, 1/16, 1/64, 1/256, 1/1024).
  */
-static const unsigned int clock_shifts[TIMER_MAX_CONFIGS] = { 0, 3, 6, 8, 10 };
+static const uint8_t clock_shifts[kNumTimerConfigs] = { 0, 3, 4, 6, 8, 10 };
 
 /* Use timer/counter 1 for the tick counter. */
 volatile unsigned long long ticks;
@@ -26,7 +29,7 @@ static struct {
       long err_dec;
       int err_prec;
       uint8_t cs;
-   } configs[TIMER_MAX_CONFIGS];
+   } configs[kNumTimerConfigs];
 } timers[2];
 
 static unsigned int active_timer;
@@ -38,7 +41,7 @@ static unsigned int get_configs_for_proposed_freq(unsigned long freq) {
    long err, err_div;
    int err_prec;
 
-   for (i = 0; i < TIMER_MAX_CONFIGS; i++) {
+   for (i = 0; i < kNumTimerConfigs; i++) {
       cs = clock_shifts[i];
       if (!(F_CPU & (_BV(cs) - 1)) && (F_CPU >> cs) > freq) {
          oc = (F_CPU >> cs) / freq;
@@ -217,7 +220,7 @@ void timer_init(void) {
    active_timer = 1;
    timers[active_timer].f_tick = 0;
    timers[active_timer].n_cfg = 0;
-   get_configs_for_proposed_freq(TIMER_F_TICK_DEFAULT);
+   get_configs_for_proposed_freq(kDefaultTickFrequency);
    apply_proposed_config();
 }
 
@@ -280,3 +283,4 @@ print_help:
 ISR(TIMER1_COMPA_vect) {
    ticks++;
 }
+#endif
