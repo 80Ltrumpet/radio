@@ -1,17 +1,16 @@
 #include <avr/interrupt.h>
 
+#include "clock.h"
 #include "console.h"
-#include "timer.h"
+#include "scheduler.h"
 
 int main() {
-   Timer::Init();
+   Clock::Init();
    Console::Init();
 
    sei();
 
-   for (;;) {
-      //scheduler();
-   }
+   Scheduler::Run();
 
    return 0;
 }

@@ -2,13 +2,9 @@
 # Arduino IDE. For now, it is specific to programming the ATmega2560.
 # Author: Andrew Lehmer
 
-# Configuration
 AVR_TOOLS := "C:/Arduino/hardware/tools/avr"
 
 BINARY := andruio.hex
-
-#C_SRC := $(wildcard *.c)
-CXX_SRC := $(wildcard *.cc)
 
 DEFINES := -DF_CPU=16000000UL -DARDUINO=10813 -DARDUINO_AVR_MEGA2560
 DEFINES += -DBAUD=9600
@@ -19,9 +15,8 @@ INCDIRS += -I$(AVR_TOOLS)/lib/gcc/avr/7.3.0/include
 COMMON_FLAGS := -Wall -Wextra -Os -flto -mmcu=atmega2560 -w -ffunction-sections
 COMMON_FLAGS += -fdata-sections -fno-exceptions $(DEFINES) $(INCDIRS)
 
-#OBJECTS := $(patsubst %.c, %.o, $(C_SRC))
-#OBJECTS += $(patsubst %.cc, %.o, $(CXX_SRC))
-OBJECTS := $(patsubst %.cc, %.o, $(CXX_SRC))
+SOURCES := $(wildcard *.cc)
+OBJECTS := $(patsubst %.cc, %.o, $(SOURCES))
 
 LFLAGS := $(COMMON_FLAGS) -Wl,--gc-sections
 EEPFLAGS := -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load
