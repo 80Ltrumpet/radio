@@ -5,15 +5,13 @@
 // Scheduler singleton
 Scheduler Scheduler::scheduler{};
 
-bool Scheduler::AddTask(const Task& task) {
-  auto success{scheduler.count_ < kMaxTasks};
-  if (success) {
+void Scheduler::AddTask(const Task& task) {
+  if (scheduler.count_ < kMaxTasks) {
     scheduler.task_[scheduler.count_] = task;
   }
 
   // Always increment the count to aid in verification of static provisioning.
   ++scheduler.count_;
-  return success;
 }
 
 int8_t Scheduler::GetProvisioning() {

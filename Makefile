@@ -6,17 +6,24 @@ AVR_TOOLS := "C:/Arduino/hardware/tools/avr"
 
 BINARY := andruio.hex
 
+SOURCES := $(wildcard *.cc)
+OBJECTS := $(patsubst %.cc, %.o, $(SOURCES))
+
+# Pre-compute static provisioning for tasks and commands.
+NUM_TASKS := $(shell findstr "::AddTask.*;" $(SOURCES) | find /c /v "")
+NUM_COMMANDS := $(shell findstr "::RegisterCommand<" $(SOURCES) | find /c /v "")
+
 DEFINES := -DF_CPU=16000000UL -DARDUINO=10813 -DARDUINO_AVR_MEGA2560
 DEFINES += -DBAUD=9600
+# Custom definitions
+DEFINES += -DANDRUIO_MAX_TASKS=$(NUM_TASKS)
+DEFINES += -DANDRUIO_MAX_COMMANDS=$(NUM_COMMANDS)
 
 INCDIRS := -I$(AVR_TOOLS)/avr/include
 INCDIRS += -I$(AVR_TOOLS)/lib/gcc/avr/7.3.0/include
 
 COMMON_FLAGS := -Wall -Wextra -Os -flto -mmcu=atmega2560 -w -ffunction-sections
 COMMON_FLAGS += -fdata-sections -fno-exceptions $(DEFINES) $(INCDIRS)
-
-SOURCES := $(wildcard *.cc)
-OBJECTS := $(patsubst %.cc, %.o, $(SOURCES))
 
 LFLAGS := $(COMMON_FLAGS) -Wl,--gc-sections
 EEPFLAGS := -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load

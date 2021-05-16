@@ -15,7 +15,7 @@ class Scheduler final {
   };
 
   // Registers a task's parameters with the scheduler.
-  static bool AddTask(const Task& task);
+  static void AddTask(const Task& task);
 
   // Returns the number of extra task "slots" in the scheduler. If it is
   // negative, some tasks were unable to be added (under-provisioned).
@@ -25,7 +25,7 @@ class Scheduler final {
   static void Run();
 
  private:
-  static constexpr uint8_t kMaxTasks{1};
+  static constexpr uint8_t kMaxTasks{ANDRUIO_MAX_TASKS};
 
   Task task_[kMaxTasks]{};
   uint8_t count_{};

@@ -11,7 +11,10 @@
                 "F_CPU=16000000UL",
                 "ARDUINO=10813",
                 "ARDUINO_AVR_MEGA2560",
-                "BAUD=9600"
+                "BAUD=9600",
+                // Placeholders for custom definitions
+                "ANDRUIO_MAX_COMMANDS=1",
+                "ANDRUIO_MAX_TASKS=1"
             ],
             "includePath": [
                 "${default}",

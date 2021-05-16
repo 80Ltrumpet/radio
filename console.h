@@ -7,7 +7,7 @@ class Console final {
   using CommandHandler = void (*)(int, const char**);
 
  public:
-  static bool Init();
+  static void Init();
 
  private:
   // Size of the console input buffer

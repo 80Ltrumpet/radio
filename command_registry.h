@@ -5,7 +5,7 @@
 class CommandRegistry final {
   using CommandHandler = void (*)(int, const char**);
 
-  static constexpr uint8_t kMaxCommands{2};
+  static constexpr uint8_t kMaxCommands{ANDRUIO_MAX_COMMANDS};
 
   class CommandRegistryImpl final {
     friend CommandRegistry;

@@ -85,7 +85,7 @@ const bool VerifyCommand::registered{
  * Public Static Methods
  */
 
-bool Console::Init() {
+void Console::Init() {
   // Set up USART0 as the console device.
   // These _VALUEs are from util/setbaud.h. BAUD is defined in the makefile.
   UBRR0H = UBRRH_VALUE;
@@ -104,7 +104,7 @@ bool Console::Init() {
   Scheduler::Task task{};
   task.name = "console";
   task.runner = Console::Run;
-  return Scheduler::AddTask(task);
+  Scheduler::AddTask(task);
 }
 
 /*-----------------------------------------------------------------------------
