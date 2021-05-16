@@ -2,50 +2,44 @@
 
 #include <stdint.h>
 
-class CommandRegistry {
+class CommandRegistry final {
   using CommandHandler = void (*)(int, const char**);
 
- public:
-  template <class C>
-  class Command {
-    friend C;
+  static constexpr uint8_t kMaxCommands{2};
 
-   public:
-    static bool Register() {
-      return Commands().add_entry(C::kCommandName, C::CommandHandler);
-    }
+  class CommandRegistryImpl final {
+    friend CommandRegistry;
 
-   private:
-    Command() { (void)registered; }
-
-    static bool registered;
-  };
-
- protected:
-  static constexpr uint8_t kMaxCommands{};
-
-  class Registry final {
-   public:
-    bool add_entry(const char* name, CommandHandler handler);
-
-   private:
     struct Entry final {
       const char* name{};
       CommandHandler handler{};
     };
 
+   public:
+    const Entry& get_entry(uint8_t i) const { return commands_[i]; }
+    uint8_t size() const { return count_; }
+
+   private:
     Entry commands_[kMaxCommands]{};
     uint8_t count_{};
   };
 
-  CommandRegistry() = default;
-
-  static Registry& Commands() {
-    static Registry registry;
+ public:
+  static CommandRegistryImpl& Commands() {
+    static CommandRegistryImpl registry;
     return registry;
   }
-};
 
-template <class C>
-bool CommandRegistry::Command<C>::registered =
-    CommandRegistry::Command<C>::Register();
+  // Returns the number of extra command "slots" in the registry. If it is
+  // negative, some commands were unable to be registered (under-provisioned).
+  static int8_t GetProvisioning();
+
+  template <class Command>
+  static bool RegisterCommand() {
+    return CommandRegistry::RegisterCommand(Command::kCommandName,
+                                            Command::CommandHandler);
+  }
+
+ private:
+  static bool RegisterCommand(const char* name, CommandHandler handler);
+};

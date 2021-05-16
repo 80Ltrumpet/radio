@@ -7,6 +7,7 @@
 #include <util/setbaud.h>
 
 #include "clock.h"
+#include "command_registry.h"
 #include "scheduler.h"
 
 // These are kept file-local (static) due to their use within ISRs.
@@ -26,7 +27,61 @@ RingBuffer rx;
 
 }  // namespace
 
-/*-----------------------------------------------------------------------------
+/*------------------------------------------------------------------------------
+ * Argument vector utility
+ */
+class ArgVector final {
+  // Maximum number of arguments
+  static constexpr int kMaxArgc{16};
+
+ public:
+  // The input must be null-terminated.
+  ArgVector(char* input);
+
+  int argc{};
+  const char* argv[kMaxArgc]{};
+};
+
+ArgVector::ArgVector(char* input) {
+  const char* arg_start{};
+  for (; *input != '\0'; ++input) {
+    const auto is_space{*input == ' '};
+    if (arg_start) {
+      if (is_space) {
+        *input = '\0';
+        argv[argc++] = arg_start;
+        arg_start = nullptr;
+      }
+    } else if (!is_space) {
+      arg_start = input;
+    }
+  }
+  if (arg_start && argc < kMaxArgc) {
+    argv[argc++] = arg_start;
+  }
+}
+
+/*------------------------------------------------------------------------------
+ * Built-in "verify" command
+ */
+struct VerifyCommand final {
+  static void CommandHandler(int argc, const char* argv[]);
+  static const char* const kCommandName;
+
+ private:
+  static const bool registered;
+};
+
+void VerifyCommand::CommandHandler(int argc, const char* argv[]) {
+  printf("Commands: %3" PRId8 "\nTasks:    %3" PRId8 "\n",
+         CommandRegistry::GetProvisioning(), Scheduler::GetProvisioning());
+}
+
+const char* const VerifyCommand::kCommandName{"verify"};
+const bool VerifyCommand::registered{
+    CommandRegistry::RegisterCommand<VerifyCommand>()};
+
+/*------------------------------------------------------------------------------
  * Public Static Methods
  */
 
@@ -196,7 +251,7 @@ bool Console::poll_input() {
         history_.oldest &= History::kMask;
         history_.latest -= History::kSize;
       }
-fast_forward_history:
+    fast_forward_history:
       history_.current = history_.latest;
       // Reset input length for the next command. The input buffer can be
       // safely processed as a null-terminated string.
@@ -395,11 +450,24 @@ int Console::PutChar(char c, FILE* stream) {
 }
 
 void Console::Run([[maybe_unused]] void* arg) {
-  if (!console.poll_input()) {
-    return;
+  if (!console.poll_input()) return;
+
+  // Generate the argument vector.
+  ArgVector v{console.input_};
+  if (v.argc == 0) return;
+
+  // Dispatch the arguments to the appropriate command.
+  auto& commands{CommandRegistry::Commands()};
+  for (uint8_t i{}; i < commands.size(); ++i) {
+    const auto& e{commands.get_entry(i)};
+    if (strcmp(e.name, v.argv[0]) == 0) {
+      e.handler(v.argc, v.argv);
+      return;
+    }
   }
 
-  // TODO: Generate argument vector and run the command.
+  // TODO: argv[0] didn't match a known command. Maybe print some help?
+  printf("Unknown command \"%s\".\n", v.argv[0]);
 }
 
 /*-----------------------------------------------------------------------------

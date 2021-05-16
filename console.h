@@ -3,9 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "command_registry.h"
-
-class Console final : public CommandRegistry {
+class Console final {
   using CommandHandler = void (*)(int, const char**);
 
  public:

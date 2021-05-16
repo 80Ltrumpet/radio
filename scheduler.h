@@ -17,6 +17,10 @@ class Scheduler final {
   // Registers a task's parameters with the scheduler.
   static bool AddTask(const Task& task);
 
+  // Returns the number of extra task "slots" in the scheduler. If it is
+  // negative, some tasks were unable to be added (under-provisioned).
+  static int8_t GetProvisioning();
+
   // Runs the schedule of registered tasks.
   static void Run();
 

@@ -11,10 +11,13 @@ bool Scheduler::AddTask(const Task& task) {
     scheduler.task_[scheduler.count_] = task;
   }
 
-  // TODO: Perform this static provisioning verification somewhere...
   // Always increment the count to aid in verification of static provisioning.
   ++scheduler.count_;
   return success;
+}
+
+int8_t Scheduler::GetProvisioning() {
+  return static_cast<int8_t>(kMaxTasks) - static_cast<int8_t>(scheduler.count_);
 }
 
 void Scheduler::Run() {

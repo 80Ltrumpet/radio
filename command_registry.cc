@@ -1,16 +1,21 @@
 #include "command_registry.h"
 
-bool CommandRegistry::Registry::add_entry(const char* name,
-                                          CommandHandler handler) {
-  auto success{count_ < kMaxCommands};
+int8_t CommandRegistry::GetProvisioning() {
+  return static_cast<int8_t>(kMaxCommands) -
+         static_cast<int8_t>(Commands().count_);
+}
+
+bool CommandRegistry::RegisterCommand(const char* name,
+                                      CommandHandler handler) {
+  auto& registry{Commands()};
+  auto success{registry.count_ < kMaxCommands};
   if (success) {
-    auto& entry{commands_[count_]};
+    auto& entry{registry.commands_[registry.count_]};
     entry.name = name;
     entry.handler = handler;
   }
 
-  // TODO: Perform this static provisioning verification somewhere...
   // Always increment the count to aid in verification of static provisioning.
-  ++count_;
+  ++registry.count_;
   return success;
 }
