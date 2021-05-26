@@ -1,6 +1,6 @@
 #include "scheduler.h"
 
-#include "clock.h"
+#include "timer.h"
 
 // Scheduler singleton
 Scheduler Scheduler::scheduler{};
@@ -25,11 +25,11 @@ void Scheduler::Run() {
     for (uint8_t i{}; i < task_count; ++i) {
       auto& task{scheduler.task_[i]};
       // Skip tasks that are either paused or need to wait.
-      if (task.until == 0 || Clock::GetMillis() < task.until) {
+      if (task.until == 0 || Timer::Millis() < task.until) {
         continue;
       }
       task.runner(task.arg);
-      task.until = Clock::GetMillis() + task.period;
+      task.until = Timer::Millis() + task.period;
     }
   }
 }

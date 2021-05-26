@@ -25,6 +25,8 @@ class CommandRegistry final {
   };
 
  public:
+  CommandRegistry() = delete;
+  
   static CommandRegistryImpl& Commands() {
     static CommandRegistryImpl registry;
     return registry;

@@ -27,6 +27,8 @@ class Scheduler final {
  private:
   static constexpr uint8_t kMaxTasks{ANDRUIO_MAX_TASKS};
 
+  Scheduler() = default;
+
   Task task_[kMaxTasks]{};
   uint8_t count_{};
 

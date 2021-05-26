@@ -6,12 +6,19 @@
         {
             "name": "Win32",
             "compilerPath": "${avrRoot}/bin/avr-g++",
-            "compilerArgs": ["-mmcu=atmega2560"],
+            "compilerArgs": [
+                "-mmcu=atmega32u4",
+            ],
             "defines": [
-                "F_CPU=16000000UL",
+                "F_CPU=8000000L",
                 "ARDUINO=10813",
-                "ARDUINO_AVR_MEGA2560",
+                "ARDUINO_AVR_FEATHER32U4",
                 "BAUD=9600",
+                "USB_VID=0x239A",
+                "USB_PID=0x800C",
+                "USB_MANUFACTURER=\"Adafruit\"",
+                "USB_PRODUCT=\"Feather 32u4\"",
+                "USB_SERIAL_NUMBER=\"\"",
                 // Placeholders for custom definitions
                 "ANDRUIO_MAX_COMMANDS=1",
                 "ANDRUIO_MAX_TASKS=1"
@@ -22,7 +29,8 @@
                 "${avrRoot}/lib/gcc/avr/7.3.0/include"
             ],
             "windowsSdkVersion": "10.0.18362.0",
-            "intelliSenseMode": "windows-gcc-x64"
+            "intelliSenseMode": "windows-gcc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
         }
     ],
     "version": 4

@@ -1,31 +1,12 @@
 #include "console.h"
 
-#include <avr/interrupt.h>
-#include <avr/io.h>
+#include <stdio.h>
 #include <string.h>
-#include <util/atomic.h>
-#include <util/setbaud.h>
 
-#include "clock.h"
 #include "command_registry.h"
 #include "scheduler.h"
-
-// These are kept file-local (static) due to their use within ISRs.
-namespace {
-
-// Ring buffer for USART TX/RX.
-struct RingBuffer final {
-  static constexpr uint8_t kSize{64};
-  volatile uint8_t head{};
-  volatile uint8_t tail{};
-  char data[kSize];
-};
-
-// USART transmit/receive ring buffers.
-RingBuffer tx;
-RingBuffer rx;
-
-}  // namespace
+#include "timer.h"
+#include "usb.h"
 
 /*------------------------------------------------------------------------------
  * Argument vector utility
@@ -86,20 +67,6 @@ const bool VerifyCommand::registered{
  */
 
 void Console::Init() {
-  // Set up USART0 as the console device.
-  // These _VALUEs are from util/setbaud.h. BAUD is defined in the makefile.
-  UBRR0H = UBRRH_VALUE;
-  UBRR0L = UBRRL_VALUE;
-  // RX complete interrupt, receive, and transmit
-  UCSR0B = _BV(RXCIE0) | _BV(RXEN0) | _BV(TXEN0);
-  // 8-bit, no parity, 1 stop bit
-  UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
-
-  // Set up stdout/stderr for printf-related functions.
-  fdev_setup_stream(&console.stream_, PutChar, nullptr, _FDEV_SETUP_WRITE);
-  stdout = &console.stream_;
-  stderr = &console.stream_;
-
   // Add the console task to the scheduler.
   Scheduler::Task task{};
   task.name = "console";
@@ -118,18 +85,6 @@ void Console::clear_input(uint8_t length) {
   input_length_ = cursor_ = length;
 }
 
-bool Console::get_char(char& c) {
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-    if (rx.head >= rx.tail) {
-      rx.head = rx.tail = 0;
-      return false;
-    }
-    c = rx.data[rx.head++ & (RingBuffer::kSize - 1)];
-  }
-
-  return true;
-}
-
 void Console::put_char_n(char c, uint8_t n) {
   for (uint8_t i{0}; i < n; ++i) putchar(c);
 }
@@ -142,7 +97,7 @@ bool Console::poll_input() {
   }
 
   char c{};
-  if (!get_char(c)) {
+  if (!Usb::GetChar(c)) {
     // No input was received.
     return false;
   }
@@ -429,26 +384,6 @@ bool Console::poll_input() {
 // Console singleton
 Console Console::console{};
 
-int Console::PutChar(char c, FILE* stream) {
-  // Precede all newlines with carriage returns.
-  if (c == '\n' && PutChar('\r', stream) != 0) return _FDEV_ERR;
-
-  // Wait until there is room in the transmit buffer.
-  constexpr auto kTxTimeoutTicks{50ULL};
-  unsigned long long timeout{Clock::GetMillis() + kTxTimeoutTicks};
-  while (tx.tail - tx.head >= RingBuffer::kSize) {
-    if (Clock::GetMillis() >= timeout) return _FDEV_ERR;
-  }
-
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-    tx.data[tx.tail++ & (RingBuffer::kSize - 1)] = c;
-    UCSR0B |= _BV(UDRIE0);
-    UCSR0A |= _BV(TXC0);
-  }
-
-  return 0;
-}
-
 void Console::Run([[maybe_unused]] void* arg) {
   if (!console.poll_input()) return;
 
@@ -468,38 +403,4 @@ void Console::Run([[maybe_unused]] void* arg) {
 
   // TODO: argv[0] didn't match a known command. Maybe print some help?
   printf("Unknown command \"%s\".\n", v.argv[0]);
-}
-
-/*-----------------------------------------------------------------------------
- * ISRs
- */
-
-ISR(USART0_RX_vect) {
-  unsigned char parity_check{bit_is_clear(UCSR0A, UPE0)};
-  char c{UDR0};
-  if (parity_check) {
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-      // Drop input that would overflow the buffer.
-      if (rx.tail - rx.head < RingBuffer::kSize)
-        rx.data[rx.tail++ & (RingBuffer::kSize - 1)] = c;
-    }
-  }
-}
-
-ISR(USART0_UDRE_vect) {
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-    if (tx.head < tx.tail) {
-      UDR0 = tx.data[tx.head++ & (RingBuffer::kSize - 1)];
-      // Prevent overflow.
-      if (tx.head >= RingBuffer::kSize) {
-        tx.head -= RingBuffer::kSize;
-        tx.tail -= RingBuffer::kSize;
-      }
-    } else {
-      // There is nothing to transmit. Disable this interrupt and reset
-      // the buffer.
-      UCSR0B &= ~_BV(UDRIE0);
-      tx.head = tx.tail = 0;
-    }
-  }
 }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdio.h>
 
 class Console final {
   using CommandHandler = void (*)(int, const char**);
@@ -14,7 +13,7 @@ class Console final {
   static constexpr uint8_t kInputSize{64};
 
   // Maximum number of commands that can be registered
-  static constexpr uint8_t kMaxCommands{1};
+  static constexpr uint8_t kMaxCommands{ANDRUIO_MAX_COMMANDS};
 
   // Escape states
   enum class Escape {
@@ -68,10 +67,6 @@ class Console final {
   // according to the length parameter.
   void clear_input(uint8_t length = 0);
 
-  // Reads a single character from the USART RX ring buffer. If the buffer is
-  // empty, this method returns false.
-  bool get_char(char& c);
-
   // Repeats a character a given number of times.
   void put_char_n(char c, uint8_t n);
 
@@ -79,15 +74,8 @@ class Console final {
   // input buffer should be parsed.
   bool poll_input();
 
-  // Writes a single character to the USART TX ring buffer. This method
-  // supports the AVR libc stdio output API.
-  static int PutChar(char c, FILE* stream);
-
   // Performs an iteration of the console task.
   static void Run(void* arg);
-
-  // Stream to use for stdout/stderr
-  FILE stream_{};
 
   // Console state
   char input_[kInputSize]{'\0'};
