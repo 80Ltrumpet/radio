@@ -7,7 +7,7 @@
             "name": "Win32",
             "compilerPath": "${avrRoot}/bin/avr-g++",
             "compilerArgs": [
-                "-mmcu=atmega32u4",
+                "-mmcu=atmega32u4"
             ],
             "defines": [
                 "F_CPU=8000000L",
