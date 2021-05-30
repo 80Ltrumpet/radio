@@ -27,20 +27,22 @@ uint8_t g_frac{};
 
 }  // namespace
 
-void Timer::Init() {
+namespace Timer {
+
+void Init() {
   TCNT0 = 0;
   TCCR0A |= _BV(WGM01) | _BV(WGM00);  // Fast PWM mode
   TCCR0B |= _BV(CS01) | _BV(CS00);    // 64x prescaler
   TIMSK0 |= _BV(TOIE0);               // Overflow interrupt
 }
 
-uint64_t Timer::Millis() {
+uint64_t Millis() {
   uint64_t millis;
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { millis = g_millis; }
   return millis;
 }
 
-uint64_t Timer::Micros() {
+uint64_t Micros() {
   uint64_t ovf_count;
   uint8_t ticks;
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
@@ -56,13 +58,13 @@ uint64_t Timer::Micros() {
   return ((ovf_count << 8) | ticks) * kUsPerTimerTick;
 }
 
-void Timer::DelayMs(uint64_t ms) {
+void DelayMs(uint64_t ms) {
   // Use microseconds to avoid resolution issues.
   for (auto start{Micros()}; Micros() - start < ms * 1000;)
     ;
 }
 
-void Timer::DelayUs(uint32_t us) {
+void DelayUs(uint32_t us) {
   // Function call overhead is 14 cycles, which is almost 2 microseconds at
   // 8 MHz. If the argument is less than 3, just return.
   if (us < 3) return;  // 3 cycles (4 when true)
@@ -75,15 +77,16 @@ void Timer::DelayUs(uint32_t us) {
 
   // Busy wait
   __asm__ __volatile__(
-      "1: sbiw %0,1"   // 2 cycles
+      "1: sbiw %0,1"  // 2 cycles
       "\n\t"
-      "brne 1b"        // 2 cycles
+      "brne 1b"  // 2 cycles
       : "=w"(us)
-      : "0"(us)
-  );
+      : "0"(us));
 
   // Returning takes 4 cycles.
 }
+
+}  // namespace Timer
 
 ISR(TIMER0_OVF_vect) {
   // Copy volatile variable to registers for speed.

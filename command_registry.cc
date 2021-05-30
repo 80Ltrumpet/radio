@@ -1,21 +1,48 @@
 #include "command_registry.h"
 
-int8_t CommandRegistry::GetProvisioning() {
-  return static_cast<int8_t>(kMaxCommands) -
-         static_cast<int8_t>(Commands().count_);
+namespace {
+
+constexpr uint8_t kMaxCommands{ANDRUIO_MAX_COMMANDS};
+
+struct CommandRegistryImpl final {
+  CommandRegistry::Entry entries[kMaxCommands]{};
+  uint8_t count{};
+};
+
+// Avoids the static initialization order fiasco. Note that this is only
+// necessary because CommandRegistry::RegisterCommand is used for static
+// initialization.
+CommandRegistryImpl& impl() {
+  static CommandRegistryImpl impl_;
+  return impl_;
 }
 
-bool CommandRegistry::RegisterCommand(const char* name,
-                                      CommandHandler handler) {
-  auto& registry{Commands()};
-  auto success{registry.count_ < kMaxCommands};
+}  // namespace
+
+namespace CommandRegistry {
+
+uint8_t Size() {
+  return impl().count < kMaxCommands ? impl().count : kMaxCommands;
+}
+
+const Entry& Get(uint8_t i) { return impl().entries[i]; }
+
+int8_t GetProvisioning() {
+  return static_cast<int8_t>(kMaxCommands) - static_cast<int8_t>(impl().count);
+}
+
+bool RegisterCommand(const char* name, CommandHandler handler) {
+  auto& registry{impl()};
+  auto success{registry.count < kMaxCommands};
   if (success) {
-    auto& entry{registry.commands_[registry.count_]};
+    auto& entry{registry.entries[registry.count]};
     entry.name = name;
     entry.handler = handler;
   }
 
   // Always increment the count to aid in verification of static provisioning.
-  ++registry.count_;
+  ++registry.count;
   return success;
 }
+
+}  // namespace CommandRegistry

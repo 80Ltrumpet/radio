@@ -8,15 +8,8 @@
 
 #include "bootloader.h"
 #include "cdc_types.h"
+#include "console.h"
 #include "usb_types.h"
-
-/*------------------------------------------------------------------------------
- * Constants, globals, and primitive subroutines
- */
-namespace {
-
-// Size of control and bulk endpoint FIFOs
-constexpr uint8_t kFifoSize{64};
 
 // Interface indices
 enum : uint8_t {
@@ -34,10 +27,6 @@ enum : uint8_t {
   kEndpointCount  // Must be last
 };
 
-// Easier-to-read CDC data endpoint aliases
-constexpr auto kEndpointCdcRx{kEndpointCdcDataOut};
-constexpr auto kEndpointCdcTx{kEndpointCdcDataIn};
-
 // String indices
 enum : uint8_t {
   kStringIdLanguage,
@@ -46,6 +35,54 @@ enum : uint8_t {
   kStringIdSerialNumber,
   kStringIdCount  // Must be last
 };
+
+/*------------------------------------------------------------------------------
+ * EpLock
+ *
+ * Similar to ATOMIC_BLOCK(ATOMIC_RESTORESTATE) while allowing the use of flow
+ * control statements (break/continue) within loops. This "lock" sets EPNUM to
+ * the requested endpoint index.
+ */
+
+class EpLock final {
+ public:
+  EpLock(uint8_t ep) : sreg_{SREG}, ep_{ep} {
+    cli();
+    UENUM = ep;
+  }
+
+  ~EpLock() { unlock(); }
+
+  void lock() {
+    if (!locked_) {
+      sreg_ = SREG;
+      cli();
+      UENUM = ep_;
+      locked_ = true;
+    }
+  }
+
+  void unlock() {
+    if (locked_) {
+      SREG = sreg_;
+      locked_ = false;
+    }
+  }
+
+ private:
+  uint8_t sreg_;
+  uint8_t ep_;
+  bool locked_{true};
+};
+
+namespace {
+
+// Size of control and bulk endpoint FIFOs
+constexpr uint8_t kFifoSize{64};
+
+// Easier-to-read CDC data endpoint aliases
+constexpr auto kEndpointCdcRx{kEndpointCdcDataOut};
+constexpr auto kEndpointCdcTx{kEndpointCdcDataIn};
 
 PROGMEM const char kStringLanguage_P[]{'\11', '\4'};  // English
 PROGMEM const char kStringManufacturer_P[]{USB_MANUFACTURER};
@@ -204,71 +241,8 @@ bool send_control(const void* buffer, uint8_t length, uint16_t limit,
   return true;
 }
 
-}  // namespace
-
-/*------------------------------------------------------------------------------
- * EpLock
- *
- * Similar to ATOMIC_BLOCK(ATOMIC_RESTORESTATE) while allowing the use of flow
- * control statements (break/continue) within loops. This "lock" sets EPNUM to
- * the requested endpoint index.
- */
-
-class EpLock final {
- public:
-  EpLock(uint8_t ep) : sreg_{SREG}, ep_{ep} {
-    cli();
-    UENUM = ep;
-  }
-
-  ~EpLock() { unlock(); }
-
-  void lock() {
-    if (!locked_) {
-      sreg_ = SREG;
-      cli();
-      UENUM = ep_;
-      locked_ = true;
-    }
-  }
-
-  void unlock() {
-    if (locked_) {
-      SREG = sreg_;
-      locked_ = false;
-    }
-  }
-
- private:
-  uint8_t sreg_;
-  uint8_t ep_;
-  bool locked_{true};
-};
-
-/*------------------------------------------------------------------------------
- * Usb public static methods
- */
-
-void Usb::Init() {
-  g_configuration = 0;
-
-  enable_clock();
-
-  // Enable end-of-reset and start-of-frame interrupts.
-  UDIEN = _BV(EORSTE) | _BV(SOFE);
-
-  // Set up stdout/stderr for printf-related functions.
-  fdev_setup_stream(&g_stream, PutChar, nullptr, _FDEV_SETUP_WRITE);
-  stdout = &g_stream;
-  stderr = &g_stream;
-
-  #if 1 // DEBUG
-  DDRC |= _BV(DDC7);
-  PORTC &= ~_BV(PORTC7);
-  #endif
-}
-
-bool Usb::GetChar(char& c) {
+// Input hook for Console
+bool get_char(char& c) {
   if (g_configuration == 0) return false;
   EpLock lock{kEndpointCdcRx};
   if (!(UEINTX & _BV(RWAL))) return false;
@@ -279,13 +253,10 @@ bool Usb::GetChar(char& c) {
   return true;
 }
 
-/*------------------------------------------------------------------------------
- * Usb private static methods
- */
-
-int Usb::PutChar(char c, FILE* stream) {
+// Output hook for stdio
+int put_char(char c, FILE* stream) {
   if (g_configuration == 0) return _FDEV_ERR;
-  if (c == '\n' && PutChar('\r', stream) != 0) return _FDEV_ERR;
+  if (c == '\n' && put_char('\r', stream) != 0) return _FDEV_ERR;
 
   static constexpr uint8_t kTimeoutMs{25};
   static auto timed_out{false};
@@ -317,6 +288,34 @@ int Usb::PutChar(char c, FILE* stream) {
   }
 
   return 0;
+}
+
+}  // namespace
+
+namespace Usb {
+
+void Init() {
+  g_configuration = 0;
+
+  enable_clock();
+
+  // Enable end-of-reset and start-of-frame interrupts.
+  UDIEN = _BV(EORSTE) | _BV(SOFE);
+
+  // Set up stdout/stderr for printf-related functions.
+  fdev_setup_stream(&g_stream, put_char, nullptr, _FDEV_SETUP_WRITE);
+  stdout = &g_stream;
+  stderr = &g_stream;
+
+  // Hook input into the console.
+  Console::SetGetChar(get_char);
+
+  #if 1 // DEBUG
+  DDRC |= _BV(DDC7);
+  PORTC &= ~_BV(PORTC7);
+  #endif
+}
+
 }
 
 /*------------------------------------------------------------------------------

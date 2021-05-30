@@ -6,7 +6,62 @@
 #include "command_registry.h"
 #include "scheduler.h"
 #include "timer.h"
-#include "usb.h"
+
+namespace {
+
+// Size of the console input buffer
+constexpr uint8_t kInputSize{64};
+
+// Maximum number of commands that can be registered
+constexpr uint8_t kMaxCommands{ANDRUIO_MAX_COMMANDS};
+
+}  // namespace
+
+// Escape states
+enum class Escape {
+  None,
+  Escape,
+  Bracket,
+  Esc1,
+  Esc3,
+  Literal,
+};
+
+// Non-printing characters
+enum Key : char {
+  kKeyHome = '\x01',
+  kKeyLeft = '\x02',
+  kKeyCancel = '\x03',
+  kKeyDel = '\x04',
+  kKeyEnd = '\x05',
+  kKeyRight = '\x06',
+  kKeyBeep = '\x07',
+  kKeyBackspace = '\x08',
+  kKeyTab = '\x09',
+  kKeyNewline = '\x0a',
+  kKeyClearEnd = '\x0b',
+  kKeyRedraw = '\x0c',
+  kKeyCarriageReturn = '\x0d',
+  kKeyDown = '\x0e',
+  kKeyUp = '\x10',
+  kKeyRedraw2 = '\x12',
+  kKeyClearHome = '\x15',
+  kKeyLiteral = '\x16',
+  kKeyDeleteWord = '\x17',
+  kKeyDeleteLine = '\x18',
+  kKeyEscape = '\x1b',
+  kKeyDelete = '\x7f',
+};
+
+// Buffer for console history
+struct History final {
+  static constexpr uint8_t kSize{8};
+  static constexpr uint8_t kMask{kSize - 1};
+  char list[kSize][kInputSize];
+  uint8_t oldest{};
+  uint8_t latest{};
+  uint8_t current{};
+};
 
 /*------------------------------------------------------------------------------
  * Argument vector utility
@@ -62,34 +117,44 @@ const char* const VerifyCommand::kCommandName{"verify"};
 const bool VerifyCommand::registered{
     CommandRegistry::RegisterCommand<VerifyCommand>()};
 
-/*------------------------------------------------------------------------------
- * Public Static Methods
+/*-----------------------------------------------------------------------------
+ * Private stuff
  */
+namespace {
 
-void Console::Init() {
-  // Add the console task to the scheduler.
-  Scheduler::Task task{};
-  task.name = "console";
-  task.runner = Console::Run;
-  Scheduler::AddTask(task);
+using GetCharFunc = bool (*)(char&);
+
+// Hook for "console efficient" getc()
+GetCharFunc get_char_func_{};
+
+// Console state
+char input_[kInputSize]{'\0'};
+uint8_t input_length_{};
+uint8_t cursor_{};
+bool need_prompt_{true};
+Escape escape_{Escape::None};
+History history_{};
+
+// Gets a single character of input.
+bool get_char(char& c) { return get_char_func_ ? get_char_func_(c) : false; }
+
+// Repeats a character a given number of times.
+void put_char_n(char c, uint8_t n) {
+  for (uint8_t i{0}; i < n; ++i) putchar(c);
 }
 
-/*-----------------------------------------------------------------------------
- * Private Instance Methods
- */
-
-void Console::clear_input(uint8_t length) {
+// Erases the input from the console and sets the input length and cursor
+// according to the length parameter.
+void clear_input(uint8_t length = 0) {
   put_char_n(kKeyBackspace, cursor_);
   put_char_n(' ', input_length_);
   need_prompt_ = true;
   input_length_ = cursor_ = length;
 }
 
-void Console::put_char_n(char c, uint8_t n) {
-  for (uint8_t i{0}; i < n; ++i) putchar(c);
-}
-
-bool Console::poll_input() {
+// Handles character-by-character console input. Returns true when the
+// input buffer should be parsed.
+bool poll_input() {
   if (need_prompt_) {
     need_prompt_ = false;
     input_[input_length_] = '\0';
@@ -97,7 +162,7 @@ bool Console::poll_input() {
   }
 
   char c{};
-  if (!Usb::GetChar(c)) {
+  if (!get_char(c)) {
     // No input was received.
     return false;
   }
@@ -377,24 +442,18 @@ bool Console::poll_input() {
   return newline;
 }
 
-/*-----------------------------------------------------------------------------
- * Private Static Methods
- */
-
-// Console singleton
-Console Console::console{};
-
-void Console::Run([[maybe_unused]] void* arg) {
-  if (!console.poll_input()) return;
+// Performs an iteration of the console task.
+void run([[maybe_unused]] void* arg) {
+  if (!poll_input()) return;
 
   // Generate the argument vector.
-  ArgVector v{console.input_};
+  ArgVector v{input_};
   if (v.argc == 0) return;
 
   // Dispatch the arguments to the appropriate command.
-  auto& commands{CommandRegistry::Commands()};
-  for (uint8_t i{}; i < commands.size(); ++i) {
-    const auto& e{commands.get_entry(i)};
+  const auto size{CommandRegistry::Size()};
+  for (uint8_t i{}; i < size; ++i) {
+    const auto& e{CommandRegistry::Get(i)};
     if (strcmp(e.name, v.argv[0]) == 0) {
       e.handler(v.argc, v.argv);
       return;
@@ -404,3 +463,20 @@ void Console::Run([[maybe_unused]] void* arg) {
   // TODO: argv[0] didn't match a known command. Maybe print some help?
   printf("Unknown command \"%s\".\n", v.argv[0]);
 }
+
+}  // namespace
+
+/*------------------------------------------------------------------------------
+ * Public Console functions
+ */
+
+namespace Console {
+
+void Init() {
+  // Add the console task to the scheduler.
+  Scheduler::AddTask({"console", run});
+}
+
+void SetGetChar(GetCharFunc func) { get_char_func_ = func; }
+
+}  // namespace Console

@@ -2,16 +2,14 @@
 
 #include <stdint.h>
 
-class Timer final {
- public:
-  static void Init();
+namespace Timer {
 
-  static uint64_t Millis();
-  static uint64_t Micros();
+void Init();
 
-  static void DelayMs(uint64_t ms);
-  static void DelayUs(uint32_t us);
+uint64_t Millis();
+uint64_t Micros();
 
- private:
-  Timer() = delete;
-};
+void DelayMs(uint64_t ms);
+void DelayUs(uint32_t us);
+
+}
