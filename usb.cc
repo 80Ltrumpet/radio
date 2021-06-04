@@ -6,6 +6,7 @@
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
 
+#include "atomic.h"
 #include "bootloader.h"
 #include "cdc_types.h"
 #include "console.h"
@@ -38,41 +39,18 @@ enum : uint8_t {
 
 /*------------------------------------------------------------------------------
  * EpLock
- *
- * Similar to ATOMIC_BLOCK(ATOMIC_RESTORESTATE) while allowing the use of flow
- * control statements (break/continue) within loops. This "lock" sets EPNUM to
- * the requested endpoint index.
  */
-
-class EpLock final {
+class EpLock final : public AtomicLock {
  public:
-  EpLock(uint8_t ep) : sreg_{SREG}, ep_{ep} {
-    cli();
-    UENUM = ep;
-  }
+  explicit EpLock(uint8_t ep) : ep_{ep} { post_lock(); }
 
-  ~EpLock() { unlock(); }
-
-  void lock() {
-    if (!locked_) {
-      sreg_ = SREG;
-      cli();
-      UENUM = ep_;
-      locked_ = true;
-    }
-  }
-
-  void unlock() {
-    if (locked_) {
-      SREG = sreg_;
-      locked_ = false;
-    }
+ protected:
+  void post_lock() override {
+    UENUM = ep_;
   }
 
  private:
-  uint8_t sreg_;
   uint8_t ep_;
-  bool locked_{true};
 };
 
 namespace {
@@ -310,13 +288,13 @@ void Init() {
   // Hook input into the console.
   Console::SetGetChar(get_char);
 
-  #if 1 // DEBUG
+#if 1  // DEBUG
   DDRC |= _BV(DDC7);
   PORTC &= ~_BV(PORTC7);
-  #endif
+#endif
 }
 
-}
+}  // namespace Usb
 
 /*------------------------------------------------------------------------------
  * USB request-handling utilities
@@ -491,9 +469,9 @@ bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
           // Store the boot key.
           *p_magic_key = Bootloader::kMagicKey;
 
-          #if 1 // DEBUG
+#if 1  // DEBUG
           PORTC |= _BV(PORTC7);
-          #endif
+#endif
 
           // Save the watchdog state in case the reset is aborted.
           g_wdtcsr_save = WDTCSR;
@@ -505,9 +483,9 @@ bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
           WDTCSR |= _BV(WDCE) | _BV(WDE);
           WDTCSR = g_wdtcsr_save;
 
-          #if 1 // DEBUG
+#if 1  // DEBUG
           PORTC |= _BV(PORTC7);
-          #endif
+#endif
 
           // If a backup was necessary (see above), restore it.
           if (p_boot_key != p_ram_end && p_magic_key != p_ram_end) {

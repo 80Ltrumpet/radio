@@ -170,7 +170,7 @@ constexpr uint8_t SequencerOff{0x80};
 constexpr uint8_t ListenOn{0x40};
 constexpr uint8_t ListenAbort{0x20};
 constexpr uint8_t Mode{0x1c};
-enum : uint8_t {
+enum OpModeMode : uint8_t {
   ModeSleep,
   ModeStdby = 0x04,
   ModeFs = 0x08,
@@ -180,25 +180,25 @@ enum : uint8_t {
 
 // DataModul
 constexpr uint8_t DataMode{0x60};
-enum : uint8_t {
+enum DataModulDataMode : uint8_t {
   DataModePacket,
   DataModeContWithBitSync = 0x40,
   DataModeContNoBitSync = 0x60,
 };
 constexpr uint8_t ModulationType{0x18};
-enum : uint8_t {
+enum DataModulModulationType : uint8_t {
   ModulationTypeFsk,
   ModulationTypeOok = 0x08,
 };
 // ModulationShaping semantics depend on ModulationType.
 constexpr uint8_t ModulationShaping{0x03};
-enum : uint8_t {
+enum DataModulModulationShapingFsk : uint8_t {
   ModulationShapingFskNone,
   ModulationShapingFskBt1p0,
   ModulationShapingFskBt0p5,
   ModulationShapingFskBt0p3,
 };
-enum : uint8_t {
+enum DataModulModulationShapingOok: uint8_t {
   ModulationShapingOokNone,
   ModulationShapingOokCutoffBr,
   ModulationShapingOokCutoff2Br,
@@ -213,20 +213,20 @@ constexpr uint8_t AfcLowBetaOn{0x20};
 
 // Listen1
 constexpr uint8_t ListenResolIdle{0xc0};
-enum : uint8_t {
+enum Listen1ListenResolIdle : uint8_t {
   ListenResolIdle64us = 0x40,
   ListenResolIdle4100us = 0x80,
   ListenResolIdle262ms = 0xc0,
 };
 constexpr uint8_t ListenResolRx{0x30};
-enum : uint8_t {
+enum Listen1ListenResolRx : uint8_t {
   ListenResolRx64us = 0x10,
   ListenResolRx4100us = 0x20,
   ListenResolRx262ms = 0x30,
 };
 constexpr uint8_t ListenCriteria{0x08};
 constexpr uint8_t ListenEnd{0x06};
-enum : uint8_t {
+enum Listen1ListenEnd : uint8_t {
   ListenEndStay,
   ListenEndMode = 0x02,
   ListenEndIdle = 0x04,
@@ -271,12 +271,12 @@ constexpr uint8_t OcpTrimFromMa(uint8_t ma) {
 
 // Lna
 constexpr uint8_t LnaZin{0x80};
-enum : uint8_t {
+enum LnaLnaZin : uint8_t {
   LnaZin50Ohms,
   LnaZin200Ohms = 0x80,
 };
 constexpr uint8_t LnaCurrentGain{0x38};
-enum : uint8_t {
+enum LnaLnaCurrentGain : uint8_t {
   LnaCurrentGain0db = 0x08,
   LnaCurrentGain6db = 0x10,
   LnaCurrentGain12db = 0x18,
@@ -285,7 +285,7 @@ enum : uint8_t {
   LnaCurrentGain48db = 0x30,
 };
 constexpr uint8_t LnaGainSelect{0x07};
-enum : uint8_t {
+enum LnaLnaGainSelect : uint8_t {
   LnaGainSelectAgc,
   LnaGainSelect0db,
   LnaGainSelect6db,
@@ -299,7 +299,7 @@ enum : uint8_t {
 constexpr uint8_t DccFreq{0xe0};
 constexpr uint8_t DccFreq_{5};
 constexpr uint8_t RxBwMant{0x18};
-enum : uint8_t {
+enum RxBwRxBwMant : uint8_t {
   RxBwMant16,
   RxBwMant20 = 0x08,
   RxBwMant24 = 0x10,
@@ -308,13 +308,13 @@ constexpr uint8_t RxBwExp{0x07};
 
 // OokPeak
 constexpr uint8_t OokThreshType{0xc0};
-enum : uint8_t {
+enum OokPeakOokThreshType : uint8_t {
   OokThreshTypeFixed,
   OokThreshTypePeak = 0x40,
   OokThreshTypeAverage = 0x80,
 };
 constexpr uint8_t OokPeakThreshStep{0x38};
-enum : uint8_t {
+enum OokPeakOokPeakThreshStep : uint8_t {
   OokPeakThreshStep0p5,
   OokPeakThreshStep1p0 = 0x08,
   OokPeakThreshStep1p5 = 0x10,
@@ -325,7 +325,7 @@ enum : uint8_t {
   OokPeakThreshStep6p0 = 0x38,
 };
 constexpr uint8_t OokPeakThreshDec{0x07};
-enum : uint8_t {
+enum OokPeakOokPeakThreshDec : uint8_t {
   OokPeakThreshDecEvery1,
   OokPeakThreshDecEvery2,
   OokPeakThreshDecEvery4,
@@ -338,7 +338,7 @@ enum : uint8_t {
 
 // OokAvg
 constexpr uint8_t OokAverageThreshFilt{0xc0};
-enum : uint8_t {
+enum OokAvgOokAverageThreshFilt : uint8_t {
   OokAverageThreshFiltDiv32Pi,
   OokAverageThreshFiltDiv8Pi = 0x40,
   OokAverageThreshFiltDiv4Pi = 0x80,
@@ -373,7 +373,7 @@ constexpr uint8_t Dio4Mapping_{6};
 constexpr uint8_t Dio5Mapping{0x30};
 constexpr uint8_t Dio5Mapping_{4};
 constexpr uint8_t ClkOut{0x07};
-enum : uint8_t {
+enum DioMapping2ClkOut : uint8_t {
   ClkOutFxoscDiv1,
   ClkOutFxoscDiv2,
   ClkOutFxoscDiv4,
@@ -412,12 +412,12 @@ constexpr uint8_t SyncTol{0x07};
 
 // PacketConfig1
 constexpr uint8_t PacketFormat{0x80};
-enum : uint8_t {
+enum PacketConfig1PacketFormat : uint8_t {
   PacketFormatFixed,
   PacketFormatVariable = 0x80,
 };
 constexpr uint8_t DcFree{0x60};
-enum : uint8_t {
+enum PacketConfig1DcFree : uint8_t {
   DcFreeNone,
   DcFreeManchester = 0x20,
   DcFreeWhitening = 0x40,
@@ -425,7 +425,7 @@ enum : uint8_t {
 constexpr uint8_t CrcOn{0x10};
 constexpr uint8_t CrcAutoClearOff{0x08};
 constexpr uint8_t AddressFiltering{0x06};
-enum : uint8_t {
+enum PacketConfig1AddressFiltering : uint8_t {
   AddressFilteringOff,
   AddressFilteringNode = 0x02,
   AddressFilteringBroadcast = 0x04,
@@ -433,7 +433,7 @@ enum : uint8_t {
 
 // AutoModes
 constexpr uint8_t EnterCondition{0xe0};
-enum : uint8_t {
+enum AutoModesEnterCondition : uint8_t {
   EnterConditionNone,
   EnterConditionFifoNotEmptyRising = 0x20,
   EnterConditionFifoLevelRising = 0x40,
@@ -444,7 +444,7 @@ enum : uint8_t {
   EnterConditionFifoNotEmptyFalling = 0xe0,
 };
 constexpr uint8_t ExitCondition{0x1c};
-enum : uint8_t {
+enum AutoModesExitCondition : uint8_t {
   ExitConditionNone,
   ExitConditionFifoNotEmptyFalling = 0x04,
   ExitConditionFifoLevelOrTimeoutRising = 0x08,
@@ -455,7 +455,7 @@ enum : uint8_t {
   ExitConditionTimeoutRising = 0x1c,
 };
 constexpr uint8_t IntermediateMode{0x03};
-enum : uint8_t {
+enum AutoModesIntermediateMode : uint8_t {
   IntermediateModeSleep,
   IntermediateModeStdby,
   IntermediateModeRx,

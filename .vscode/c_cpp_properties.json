@@ -21,7 +21,8 @@
                 "USB_SERIAL_NUMBER=\"\"",
                 // Placeholders for custom definitions
                 "ANDRUIO_MAX_COMMANDS=1",
-                "ANDRUIO_MAX_TASKS=1"
+                "ANDRUIO_MAX_TASKS=1",
+                "RADIO_SYNC_WORDS=0x54, 0x2c, 0xab, 0xd3"
             ],
             "includePath": [
                 "${default}",

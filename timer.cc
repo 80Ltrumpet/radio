@@ -2,7 +2,8 @@
 
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <util/atomic.h>
+
+#include "atomic.h"
 
 namespace {
 
@@ -38,14 +39,18 @@ void Init() {
 
 uint64_t Millis() {
   uint64_t millis;
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { millis = g_millis; }
+  {
+    AtomicLock lock{};
+    millis = g_millis;
+  }
   return millis;
 }
 
 uint64_t Micros() {
   uint64_t ovf_count;
   uint8_t ticks;
-  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+  {
+    AtomicLock lock{};
     ovf_count = g_ovf_count;
     ticks = TCNT0;
 

@@ -1,6 +1,7 @@
 #include <avr/interrupt.h>
 
 #include "console.h"
+#include "radio.h"
 #include "scheduler.h"
 #include "spi.h"
 #include "timer.h"
@@ -13,6 +14,7 @@ int main() {
 
    sei();
    
+   Radio::Init();
    Console::Init();
    Scheduler::Run();
 
