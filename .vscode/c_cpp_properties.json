@@ -1,38 +1,59 @@
 {
-    "env": {
-        "avrRoot": "C:/Arduino/hardware/tools/avr"
-    },
-    "configurations": [
-        {
-            "name": "Win32",
-            "compilerPath": "${avrRoot}/bin/avr-g++",
-            "compilerArgs": [
-                "-mmcu=atmega32u4"
-            ],
-            "defines": [
-                "F_CPU=8000000L",
-                "ARDUINO=10813",
-                "ARDUINO_AVR_FEATHER32U4",
-                "BAUD=9600",
-                "USB_VID=0x239A",
-                "USB_PID=0x800C",
-                "USB_MANUFACTURER=\"Adafruit\"",
-                "USB_PRODUCT=\"Feather 32u4\"",
-                "USB_SERIAL_NUMBER=\"\"",
-                // Placeholders for custom definitions
-                "ANDRUIO_MAX_COMMANDS=1",
-                "ANDRUIO_MAX_TASKS=1",
-                "RADIO_SYNC_WORDS=0x54, 0x2c, 0xab, 0xd3"
-            ],
-            "includePath": [
-                "${default}",
-                "${avrRoot}/avr/include",
-                "${avrRoot}/lib/gcc/avr/7.3.0/include"
-            ],
-            "windowsSdkVersion": "10.0.18362.0",
-            "intelliSenseMode": "windows-gcc-x64",
-            "configurationProvider": "ms-vscode.makefile-tools"
-        }
+  "env": {
+    "avrRoot": "C:/Arduino/hardware/tools/avr",
+    "commonDefines": [
+      "ARDUINO=10813",
+      "ANDRUIO_MAX_COMMANDS=1",
+      "ANDRUIO_MAX_TASKS=1",
+      "RADIO_SYNC_WORDS=0x54, 0x2c, 0xab, 0xd3"
     ],
-    "version": 4
+    "commonIncludes": [
+      "./include",
+      "${avrRoot}/avr/include",
+      "${avrRoot}/lib/gcc/avr/7.3.0/include"
+    ]
+  },
+  "configurations": [
+    {
+      "name": "node",
+      "compilerPath": "${avrRoot}/bin/avr-g++",
+      "compilerArgs": ["-mmcu=atmega32u4"],
+      "defines": [
+        "F_CPU=8000000L",
+        "ARDUINO_AVR_FEATHER32U4",
+        "USB_VID=0x239A",
+        "USB_PID=0x800C",
+        "USB_MANUFACTURER=\"Adafruit\"",
+        "USB_PRODUCT=\"Feather 32u4\"",
+        "USB_SERIAL_NUMBER=\"\"",
+        "${commonDefines}"
+      ],
+      "includePath": [
+        "${default}",
+        "${commonIncludes}"
+      ],
+      "windowsSdkVersion": "10.0.18362.0",
+      "intelliSenseMode": "windows-gcc-x64",
+      "configurationProvider": "ms-vscode.makefile-tools"
+    },
+    {
+      "name": "root",
+      "compilerPath": "${avrRoot}/bin/avr-g++",
+      "compilerArgs": ["-mmcu=atmega2560"],
+      "defines": [
+        "F_CPU=16000000UL",
+        "ARDUINO_AVR_MEGA2560",
+        "BAUD=9600",
+        "${commonDefines}"
+      ],
+      "includePath": [
+        "${default}",
+        "${commonIncludes}"
+      ],
+      "windowsSdkVersion": "10.0.18362.0",
+      "intelliSenseMode": "windows-gcc-x64",
+      "configurationProvider": "ms-vscode.makefile-tools"
+    }
+  ],
+  "version": 4
 }

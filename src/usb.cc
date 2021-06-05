@@ -1,10 +1,19 @@
 #include "usb.h"
 
+#ifndef USB_VID
+
+namespace Usb {
+void Init() {}
+}  // namespace Usb
+
+#else
+
 #include <alloca.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
+#include <stdio.h>
 
 #include "atomic.h"
 #include "bootloader.h"
@@ -45,9 +54,7 @@ class EpLock final : public AtomicLock {
   explicit EpLock(uint8_t ep) : ep_{ep} { post_lock(); }
 
  protected:
-  void post_lock() override {
-    UENUM = ep_;
-  }
+  void post_lock() override { UENUM = ep_; }
 
  private:
   uint8_t ep_;
@@ -572,3 +579,5 @@ ISR(USB_COM_vect) {
     UECONX = _BV(STALLRQ) | _BV(EPEN);
   }
 }
+
+#endif

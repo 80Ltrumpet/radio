@@ -14,9 +14,8 @@ int main() {
 
    sei();
    
-   Radio::Init();
    Console::Init();
-   Scheduler::Run();
+   Radio::Init();
 
-   return 0;
+   Scheduler::Run();
 }
