@@ -7,7 +7,7 @@
 
 namespace {
 
-constexpr uint8_t kTicksPerUs{F_CPU / 1000000};  // 8
+constexpr uint8_t kTicksPerUs{F_CPU / 1000000};
 constexpr uint16_t kTicksPerOvf{256};
 constexpr uint8_t kTimerPrescaler{64};
 constexpr uint8_t kUsPerTimerTick{kTimerPrescaler / kTicksPerUs};
@@ -70,15 +70,30 @@ void DelayMs(uint64_t ms) {
 }
 
 void DelayUs(uint32_t us) {
+#if F_CPU == 16000000UL
+  // Funciton call overhead is 14 cycles, which is almost 1 microsecond at
+  // 16 MHz. If the argument is less than 2, just return.
+  if (us < 2) return;  // 3 cycles (4 when true)
+
+  // The ASM loop takes 4 cycles (0.25 microseconds) per iteration, so it needs
+  // to run four times per requested microsecond. However, accounting for the
+  // cycles burned so far (including these adjustments) and the 4-cycle return,
+  // we need to subtract 6 (since 6 * 4 = 24, which is close enough to 27).
+  us = (us << 2) - 6;  // 6 cycles
+#elif F_CPU == 8000000L
   // Function call overhead is 14 cycles, which is almost 2 microseconds at
   // 8 MHz. If the argument is less than 3, just return.
   if (us < 3) return;  // 3 cycles (4 when true)
+  if (us < 4) return;  // 3 cycles (4 when true)
 
   // The ASM loop takes 4 cycles (0.5 microseconds) per iteration, so it needs
   // to run twice per requested microsecond. However, accounting for the cycles
-  // burned so far (including these adjustments), we need to subtract 5 (since
-  // 5 * 4 = 16, which is close enough to 21).
-  us = (us << 1) - 5;  // 4 cycles
+  // burned so far (including these adjustments) and the 4-cycle return, we need
+  // to subtract 7 (since 7 * 4 = 28).
+  us = (us << 1) - 7;  // 4 cycles
+#else
+#error "Timer::DelayUs does not support F_CPU."
+#endif
 
   // Busy wait
   __asm__ __volatile__(

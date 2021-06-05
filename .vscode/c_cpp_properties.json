@@ -5,10 +5,11 @@
       "ARDUINO=10813",
       "ANDRUIO_MAX_COMMANDS=1",
       "ANDRUIO_MAX_TASKS=1",
+      "RADIO_BROADCAST_ADDR=0xbc",
       "RADIO_SYNC_WORDS=0x54, 0x2c, 0xab, 0xd3"
     ],
     "commonIncludes": [
-      "./include",
+      "${workspaceFolder}/include",
       "${avrRoot}/avr/include",
       "${avrRoot}/lib/gcc/avr/7.3.0/include"
     ]
@@ -34,7 +35,9 @@
       ],
       "windowsSdkVersion": "10.0.18362.0",
       "intelliSenseMode": "windows-gcc-x64",
-      "configurationProvider": "ms-vscode.makefile-tools"
+      "browse": {
+        "limitSymbolsToIncludedHeaders": true
+      }
     },
     {
       "name": "root",
@@ -52,7 +55,9 @@
       ],
       "windowsSdkVersion": "10.0.18362.0",
       "intelliSenseMode": "windows-gcc-x64",
-      "configurationProvider": "ms-vscode.makefile-tools"
+      "browse": {
+        "limitSymbolsToIncludedHeaders": true
+      }
     }
   ],
   "version": 4

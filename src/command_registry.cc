@@ -1,5 +1,9 @@
 #include "command_registry.h"
 
+#include <stdio.h>
+
+#include "scheduler.h"
+
 namespace {
 
 constexpr uint8_t kMaxCommands{ANDRUIO_MAX_COMMANDS};
@@ -46,3 +50,23 @@ bool RegisterCommand(const char* name, CommandHandler handler) {
 }
 
 }  // namespace CommandRegistry
+
+/*------------------------------------------------------------------------------
+ * Built-in "verify" command
+ */
+struct VerifyCommand final {
+  static void CommandHandler(int argc, const char* argv[]);
+  static const char* const kCommandName;
+
+ private:
+  static const bool registered;
+};
+
+void VerifyCommand::CommandHandler(int argc, const char* argv[]) {
+  printf("Commands: %3" PRId8 "\nTasks:    %3" PRId8 "\n",
+         CommandRegistry::GetProvisioning(), Scheduler::GetProvisioning());
+}
+
+const char* const VerifyCommand::kCommandName{"verify"};
+const bool VerifyCommand::registered{
+    CommandRegistry::RegisterCommand<VerifyCommand>()};

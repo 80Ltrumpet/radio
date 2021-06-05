@@ -12,9 +12,6 @@ namespace {
 // Size of the console input buffer
 constexpr uint8_t kInputSize{64};
 
-// Maximum number of commands that can be registered
-constexpr uint8_t kMaxCommands{ANDRUIO_MAX_COMMANDS};
-
 }  // namespace
 
 // Escape states
@@ -96,26 +93,6 @@ ArgVector::ArgVector(char* input) {
     argv[argc++] = arg_start;
   }
 }
-
-/*------------------------------------------------------------------------------
- * Built-in "verify" command
- */
-struct VerifyCommand final {
-  static void CommandHandler(int argc, const char* argv[]);
-  static const char* const kCommandName;
-
- private:
-  static const bool registered;
-};
-
-void VerifyCommand::CommandHandler(int argc, const char* argv[]) {
-  printf("Commands: %3" PRId8 "\nTasks:    %3" PRId8 "\n",
-         CommandRegistry::GetProvisioning(), Scheduler::GetProvisioning());
-}
-
-const char* const VerifyCommand::kCommandName{"verify"};
-const bool VerifyCommand::registered{
-    CommandRegistry::RegisterCommand<VerifyCommand>()};
 
 /*-----------------------------------------------------------------------------
  * Private stuff
@@ -344,11 +321,11 @@ bool poll_input() {
     case kKeyClearHome:
       memmove(input_, input_ + cursor_, post_cursor);
       put_char_n(kKeyBackspace, cursor_);
-      input_[cursor_] = '\0';
+      input_[post_cursor] = '\0';
       fputs(input_, stdout);
       put_char_n(' ', cursor_);
       put_char_n(kKeyBackspace, input_length_);
-      input_length_ = cursor_;
+      input_length_ = post_cursor;
       cursor_ = 0;
       break;
 

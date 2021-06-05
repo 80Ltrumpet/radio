@@ -20,7 +20,8 @@ void Erase(uint16_t addr, uint16_t length) {
 // This returns the number of bytes actually read.
 uint16_t Read(uint16_t addr, void* buffer, uint16_t length) {
   auto bytes{reinterpret_cast<uint8_t*>(buffer)};
-  for (uint16_t i{}; addr + i <= E2END && i < length; ++i) {
+  uint16_t i{};
+  for (; addr + i <= E2END && i < length; ++i) {
     AtomicLock lock{};
     while (EECR & _BV(EEPE))
       ;
@@ -28,6 +29,8 @@ uint16_t Read(uint16_t addr, void* buffer, uint16_t length) {
     EECR |= _BV(EERE);
     bytes[i] = EEDR;
   }
+
+  return i;
 }
 
 // This only writes the EEPROM if the data in the buffer is different from what

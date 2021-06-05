@@ -140,14 +140,6 @@ void enable_clock() {
   UDCON = 0;
 }
 
-// TODO: This is possibly unused.
-void disable_clock() {
-  // Freeze the clock and disable the VBUS pad.
-  USBCON = (USBCON | _BV(FRZCLK)) & ~_BV(OTGPADE);
-  // Stop the PLL.
-  PLLCSR = ~_BV(PLLE);
-}
-
 inline void wait_txin() {
   while (!(UEINTX & _BV(TXINI)))
     ;
@@ -294,11 +286,6 @@ void Init() {
 
   // Hook input into the console.
   Console::SetGetChar(get_char);
-
-#if 1  // DEBUG
-  DDRC |= _BV(DDC7);
-  PORTC &= ~_BV(PORTC7);
-#endif
 }
 
 }  // namespace Usb
@@ -476,10 +463,6 @@ bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
           // Store the boot key.
           *p_magic_key = Bootloader::kMagicKey;
 
-#if 1  // DEBUG
-          PORTC |= _BV(PORTC7);
-#endif
-
           // Save the watchdog state in case the reset is aborted.
           g_wdtcsr_save = WDTCSR;
           wdt_enable(WDTO_120MS);
@@ -489,10 +472,6 @@ bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
           wdt_reset();
           WDTCSR |= _BV(WDCE) | _BV(WDE);
           WDTCSR = g_wdtcsr_save;
-
-#if 1  // DEBUG
-          PORTC |= _BV(PORTC7);
-#endif
 
           // If a backup was necessary (see above), restore it.
           if (p_boot_key != p_ram_end && p_magic_key != p_ram_end) {

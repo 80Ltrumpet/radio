@@ -40,6 +40,7 @@ void EepromCommand::CommandHandler(int argc, const char* argv[]) {
       if ((i & 7) == 7) puts("");
     }
   }
+  puts("");
 }
 
 const char* const EepromCommand::kCommandName{"eeprom"};
