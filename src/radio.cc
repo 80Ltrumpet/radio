@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "atomic.h"
 #include "command_registry.h"
 #include "eeprom.h"
 #include "rfm69hcw.h"
@@ -65,28 +66,38 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
  */
 
 uint8_t node_addr_{0xff};
+void (*on_payload_ready_)(){};
+void (*on_packet_sent_)(){};
+
+// Shadow registers to optimize read-modify-write operations
+struct {
+  uint8_t OpMode{Reg::Reset::OpMode};
+} shadow_{};
 
 // Sets recommended defaults according to the data sheet.
 void set_defaults() {
   // The longest (and only) burst write is Lna through AfcBw.
   constexpr uint8_t kBufLen{Reg::AfcBw - Reg::Lna + 1};
-  const uint8_t buffer[kBufLen]{Default::Lna, Default::RxBw, Default::AfcBw};
+  const uint8_t buffer[kBufLen]{Reg::Default::Lna, Reg::Default::RxBw,
+                                Reg::Default::AfcBw};
   write(Reg::Lna, buffer, kBufLen);
-  write(Reg::DioMapping2, Default::DioMapping2);
-  write(Reg::RssiThresh, Default::RssiThresh);
-  write(Reg::FifoThresh, Default::FifoThresh);
-  write(Reg::TestDagc, Default::TestDagc);
+  write(Reg::DioMapping2, Reg::Default::DioMapping2);
+  write(Reg::RssiThresh, Reg::Default::RssiThresh);
+  write(Reg::FifoThresh, Reg::Default::FifoThresh);
+  write(Reg::TestDagc, Reg::Default::TestDagc);
 }
 
 // Performs one-time configuration.
 void configure() {
+  using namespace Bits;
+
   // Write the sync words before configuring their length.
   const uint8_t kSyncWordsLength{sizeof(kSyncWords)};
   write(Reg::SyncValue, kSyncWords, kSyncWordsLength);
   // If the length is not equal to the default, configure it.
-  if (auto sync_config{Reset::SyncConfig};
-      sync_config != ((Reset::SyncConfig & SyncSize) >> SyncSize_)) {
-    sync_config &= SyncSize;
+  if (auto sync_config{Reg::Reset::SyncConfig};
+      (sync_config & SyncSize) != (Reg::Reset::SyncConfig & SyncSize)) {
+    sync_config &= ~SyncSize;
     sync_config |= (kSyncWordsLength - 1) << SyncSize_;
     write(Reg::SyncConfig, sync_config);
   }
@@ -106,7 +117,7 @@ void configure() {
   write(Reg::DataModul, buffer, kBufLen);
 
   // Set the channel filter bandwidth to 400 kHz with a 500 Hz DCC cutoff.
-  buffer[0] = buffer[1] = (7 << DccFreq_) | RxBwMant20;
+  buffer[0] = buffer[1] = (7 << Bits::DccFreq_) | Bits::RxBwMant20;
   write(Reg::RxBw, buffer, 2);
 
   // Use variable-length packets with DC-free whitening and CRC checks. Use
@@ -121,7 +132,42 @@ void configure() {
   buffer[1] = kBroadcastAddr;
   write(Reg::NodeAdrs, buffer, 2);
 
-  // Leave everything else at their default value.
+  // Configure listen timings to an 80% duty cycle with ~80 milliseconds of Rx
+  // and ~20 milliseconds of idle. Packet acceptance requires an address match.
+  // After listening, return to the currently programmed mode.
+  buffer[0] = ListenResolIdle4100us | ListenResolRx4100us | ListenCriteria |
+              ListenEndMode;
+  buffer[1] = 5;   // 20.5 ms
+  buffer[2] = 20;  // 82.0 ms
+  write(Reg::Listen1, buffer, 3);
+
+  // Leave everything else at default values.
+}
+
+void set_listen(bool enable) {
+  auto op_mode{shadow_.OpMode};
+  if ((op_mode & Bits::ListenOn) == enable) return;
+
+  if (enable) {
+    op_mode |= Bits::ListenOn;
+  } else {
+    // Need to set and clear ListenAbort in two separate SPI transactions.
+    op_mode = (op_mode | Bits::ListenAbort) & ~Bits::ListenOn;
+    write(Reg::OpMode, op_mode);
+    op_mode &= ~Bits::ListenAbort;
+  }
+
+  write(Reg::OpMode, op_mode);
+  shadow_.OpMode = op_mode;
+}
+
+void set_op_mode(uint8_t mode) {
+  set_listen(false);
+  if (auto op_mode{shadow_.OpMode}; (op_mode & Bits::Mode) != mode) {
+    op_mode = (op_mode & ~Bits::Mode) | mode;
+    write(Reg::OpMode, op_mode);
+    shadow_.OpMode = op_mode;
+  }
 }
 
 }  // namespace
@@ -197,7 +243,57 @@ void Init() {
   // is acknowledged. The root starts in the listening state.
 }
 
+void SetOnPayloadReady(void (*on_payload_ready)()) {
+  on_payload_ready_ = on_payload_ready;
+}
+
+void SetOnPacketSent(void (*on_packet_sent)()) {
+  on_packet_sent_ = on_packet_sent;
+}
+
 uint8_t GetNodeAddress() { return node_addr_; }
+
+void Listen() {
+  // Minor optimization (set_listen also checks this).
+  if (shadow_.OpMode & Bits::ListenOn) return;
+
+  // Listen mode can only be enabled while in standby (idle).
+  set_op_mode(Bits::ModeStdby);
+
+  // Switch the interrupt source to PayloadReady.
+  write(Reg::DioMapping1, 1 << Bits::Dio0Mapping_);
+
+  set_listen(true);
+}
+
+void HandlePacket(void (*handler)(const Packet&)) {
+  // NOTE: Packets greater than the length of the FIFO are not allowed.
+  static uint8_t buffer[kFifoSize]{};
+
+  // Check if we even have a packet.
+  if (!(read(Reg::IrqFlags2) & Bits::PayloadReady)) return;
+
+  {
+    AtomicLock lock{};
+
+    // Read the packet length.
+    auto length{buffer[0] = read(Reg::Fifo)};
+
+    // Read the rest of the packet.
+    read(Reg::Fifo, buffer + 1, length - 1);
+  }
+
+  // Handle the packet.
+  handler(*reinterpret_cast<const Packet*>(buffer));
+}
+
+void SendPacket(const Packet& packet) {
+  // NOTE: This assumes that only one task is responsible for sending packets.
+  // Otherwise, we would have to ensure that we are not in transmit mode, first.
+  set_op_mode(Bits::ModeStdby);
+  write(Reg::Fifo, &packet, packet.length);
+  set_op_mode(Bits::ModeTx);
+}
 
 }  // namespace Radio
 
@@ -205,5 +301,18 @@ uint8_t GetNodeAddress() { return node_addr_; }
  * Interrupt handler
  */
 ISR(INT6_vect) {
-  // TODO
+  auto irq2{read(Reg::IrqFlags2)};
+  if (irq2 & Bits::PayloadReady) {
+    set_op_mode(Bits::ModeStdby);
+    if (on_payload_ready_) {
+      on_payload_ready_();
+    }
+  }
+
+  if (irq2 & Bits::PacketSent) {
+    set_op_mode(Bits::ModeStdby);
+    if (on_packet_sent_) {
+      on_packet_sent_();
+    }
+  }
 }

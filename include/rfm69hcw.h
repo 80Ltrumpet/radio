@@ -4,154 +4,135 @@
 
 namespace rfm69hcw {
 
+constexpr uint8_t kFifoSize{66};
+
 // Register address definitions from Section 6.1, Table 23 of the data sheet
-struct Reg final {
-#define ADDR_T static constexpr uint8_t
-  ADDR_T Fifo{0x00};
-  ADDR_T OpMode{0x01};
-  ADDR_T DataModul{0x02};
-  ADDR_T BitrateMsb{0x03};
-  ADDR_T BitrateLsb{0x04};
-  ADDR_T FdevMsb{0x05};
-  ADDR_T FdevLsb{0x06};
-  ADDR_T FrfMsb{0x07};
-  ADDR_T FrfMid{0x08};
-  ADDR_T FrfLsb{0x09};
-  ADDR_T Osc1{0x0a};
-  ADDR_T AfcCtrl{0x0b};
-  ADDR_T Listen1{0x0d};
-  ADDR_T Listen2{0x0e};
-  ADDR_T Listen3{0x0f};
-  ADDR_T Version{0x10};
-  ADDR_T PaLevel{0x11};
-  ADDR_T PaRamp{0x12};
-  ADDR_T Ocp{0x13};
-  ADDR_T Lna{0x18};
-  ADDR_T RxBw{0x19};
-  ADDR_T AfcBw{0x1a};
-  ADDR_T OokPeak{0x1b};
-  ADDR_T OokAvg{0x1c};
-  ADDR_T OokFix{0x1d};
-  ADDR_T AfcFei{0x1e};
-  ADDR_T AfcMsb{0x1f};
-  ADDR_T AfcLsb{0x20};
-  ADDR_T FeiMsb{0x21};
-  ADDR_T FeiLsb{0x22};
-  ADDR_T RssiConfig{0x23};
-  ADDR_T RssiValue{0x24};
-  ADDR_T DioMapping1{0x25};
-  ADDR_T DioMapping2{0x26};
-  ADDR_T IrqFlags1{0x27};
-  ADDR_T IrqFlags2{0x28};
-  ADDR_T RssiThresh{0x29};
-  ADDR_T RxTimeout1{0x2a};
-  ADDR_T RxTimeout2{0x2b};
-  ADDR_T PreambleMsb{0x2c};
-  ADDR_T PreambleLsb{0x2d};
-  ADDR_T SyncConfig{0x2e};
-  ADDR_T SyncValue{0x2f};
-  // ... SyncValue8{0x36};
-  ADDR_T PacketConfig1{0x37};
-  ADDR_T PayloadLength{0x38};
-  ADDR_T NodeAdrs{0x39};
-  ADDR_T BroadcastAdrs{0x3a};
-  ADDR_T AutoModes{0x3b};
-  ADDR_T FifoThresh{0x3c};
-  ADDR_T PacketConfig2{0x3d};
-  ADDR_T AesKey{0x3e};
-  // ... AesKey16{0x4d};
-  ADDR_T Temp1{0x4e};
-  ADDR_T Temp2{0x4f};
-  ADDR_T TestLna{0x58};
-  ADDR_T TestPa1{0x5a};
-  ADDR_T TestPa2{0x5c};
-  ADDR_T TestDagc{0x6f};
-  ADDR_T TestAfc{0x71};
-#undef ADDR_T
+namespace Reg {
 
-  // Multi-byte register lengths
-  static constexpr uint8_t kSyncValueLength{8};
-  static constexpr uint8_t kAesKeyLength{16};
-};
+constexpr uint8_t Fifo{0x00};
+constexpr uint8_t OpMode{0x01};
+constexpr uint8_t DataModul{0x02};
+constexpr uint8_t BitrateMsb{0x03};
+constexpr uint8_t BitrateLsb{0x04};
+constexpr uint8_t FdevMsb{0x05};
+constexpr uint8_t FdevLsb{0x06};
+constexpr uint8_t FrfMsb{0x07};
+constexpr uint8_t FrfMid{0x08};
+constexpr uint8_t FrfLsb{0x09};
+constexpr uint8_t Osc1{0x0a};
+constexpr uint8_t AfcCtrl{0x0b};
+constexpr uint8_t Listen1{0x0d};
+constexpr uint8_t Listen2{0x0e};
+constexpr uint8_t Listen3{0x0f};
+constexpr uint8_t Version{0x10};
+constexpr uint8_t PaLevel{0x11};
+constexpr uint8_t PaRamp{0x12};
+constexpr uint8_t Ocp{0x13};
+constexpr uint8_t Lna{0x18};
+constexpr uint8_t RxBw{0x19};
+constexpr uint8_t AfcBw{0x1a};
+constexpr uint8_t OokPeak{0x1b};
+constexpr uint8_t OokAvg{0x1c};
+constexpr uint8_t OokFix{0x1d};
+constexpr uint8_t AfcFei{0x1e};
+constexpr uint8_t AfcMsb{0x1f};
+constexpr uint8_t AfcLsb{0x20};
+constexpr uint8_t FeiMsb{0x21};
+constexpr uint8_t FeiLsb{0x22};
+constexpr uint8_t RssiConfig{0x23};
+constexpr uint8_t RssiValue{0x24};
+constexpr uint8_t DioMapping1{0x25};
+constexpr uint8_t DioMapping2{0x26};
+constexpr uint8_t IrqFlags1{0x27};
+constexpr uint8_t IrqFlags2{0x28};
+constexpr uint8_t RssiThresh{0x29};
+constexpr uint8_t RxTimeout1{0x2a};
+constexpr uint8_t RxTimeout2{0x2b};
+constexpr uint8_t PreambleMsb{0x2c};
+constexpr uint8_t PreambleLsb{0x2d};
+constexpr uint8_t SyncConfig{0x2e};
+constexpr uint8_t SyncValue{0x2f};
+// ... SyncValue8{0x36};
+constexpr uint8_t PacketConfig1{0x37};
+constexpr uint8_t PayloadLength{0x38};
+constexpr uint8_t NodeAdrs{0x39};
+constexpr uint8_t BroadcastAdrs{0x3a};
+constexpr uint8_t AutoModes{0x3b};
+constexpr uint8_t FifoThresh{0x3c};
+constexpr uint8_t PacketConfig2{0x3d};
+constexpr uint8_t AesKey{0x3e};
+// ... AesKey16{0x4d};
+constexpr uint8_t Temp1{0x4e};
+constexpr uint8_t Temp2{0x4f};
+constexpr uint8_t TestLna{0x58};
+constexpr uint8_t TestPa1{0x5a};
+constexpr uint8_t TestPa2{0x5c};
+constexpr uint8_t TestDagc{0x6f};
+constexpr uint8_t TestAfc{0x71};
 
-// Register reset values from Section 6.1, Table 23 of the data sheet
-struct Reset final {
-#define VAL_T static constexpr uint8_t
-  VAL_T Fifo{0x00};
-  VAL_T OpMode{0x04};
-  VAL_T DataModul{0x00};
-  VAL_T BitrateMsb{0x1a};
-  VAL_T BitrateLsb{0x0b};
-  VAL_T FdevMsb{0x00};
-  VAL_T FdevLsb{0x52};
-  VAL_T FrfMsb{0xe4};
-  VAL_T FrfMid{0xc0};
-  VAL_T FrfLsb{0x00};
-  VAL_T Osc1{0x41};
-  VAL_T AfcCtrl{0x00};
-  VAL_T Listen1{0x92};
-  VAL_T Listen2{0xf5};
-  VAL_T Listen3{0x20};
-  VAL_T Version{0x24};
-  VAL_T PaLevel{0x9f};
-  VAL_T PaRamp{0x09};
-  VAL_T Ocp{0x1a};
-  VAL_T Lna{0x08};
-  VAL_T RxBw{0x86};
-  VAL_T AfcBw{0x8a};
-  VAL_T OokPeak{0x40};
-  VAL_T OokAvg{0x80};
-  VAL_T OokFix{0x06};
-  VAL_T AfcFei{0x10};
-  VAL_T AfcMsb{0x00};
-  VAL_T AfcLsb{0x00};
-  VAL_T FeiMsb{0x00};
-  VAL_T FeiLsb{0x00};
-  VAL_T RssiConfig{0x02};
-  VAL_T RssiValue{0xff};
-  VAL_T DioMapping1{0x00};
-  VAL_T DioMapping2{0x05};
-  VAL_T IrqFlags1{0x80};
-  VAL_T IrqFlags2{0x00};
-  VAL_T RssiThresh{0xff};
-  VAL_T RxTimeout1{0x00};
-  VAL_T RxTimeout2{0x00};
-  VAL_T PreambleMsb{0x00};
-  VAL_T PreambleLsb{0x03};
-  VAL_T SyncConfig{0x98};
-  VAL_T SyncValueX{0x00};
-  VAL_T PacketConfig1{0x10};
-  VAL_T PayloadLength{0x40};
-  VAL_T NodeAdrs{0x00};
-  VAL_T BroadcastAdrs{0x00};
-  VAL_T AutoModes{0x00};
-  VAL_T FifoThresh{0x0f};
-  VAL_T PacketConfig2{0x02};
-  VAL_T AesKeyX{0x00};
-  VAL_T Temp1{0x01};
-  VAL_T Temp2{0x00};
-  VAL_T TestLna{0x1b};
-  VAL_T TestPa1{0x55};
-  VAL_T TestPa2{0x70};
-  VAL_T TestDagc{0x00};
-  VAL_T TestAfc{0x00};
-#undef VAL_T
-};
+// Multi-byte register lengths
+static constexpr uint8_t kSyncValueLength{8};
+static constexpr uint8_t kAesKeyLength{16};
+
+// Register reset values (if non-zero) from Section 6.1, Table 23 of the data
+// sheet
+namespace Reset {
+
+constexpr uint8_t OpMode{0x04};
+constexpr uint8_t BitrateMsb{0x1a};
+constexpr uint8_t BitrateLsb{0x0b};
+constexpr uint8_t FdevLsb{0x52};
+constexpr uint8_t FrfMsb{0xe4};
+constexpr uint8_t FrfMid{0xc0};
+constexpr uint8_t Osc1{0x41};
+constexpr uint8_t Listen1{0x92};
+constexpr uint8_t Listen2{0xf5};
+constexpr uint8_t Listen3{0x20};
+constexpr uint8_t Version{0x24};
+constexpr uint8_t PaLevel{0x9f};
+constexpr uint8_t PaRamp{0x09};
+constexpr uint8_t Ocp{0x1a};
+constexpr uint8_t Lna{0x08};
+constexpr uint8_t RxBw{0x86};
+constexpr uint8_t AfcBw{0x8a};
+constexpr uint8_t OokPeak{0x40};
+constexpr uint8_t OokAvg{0x80};
+constexpr uint8_t OokFix{0x06};
+constexpr uint8_t AfcFei{0x10};
+constexpr uint8_t RssiConfig{0x02};
+constexpr uint8_t RssiValue{0xff};
+constexpr uint8_t DioMapping2{0x05};
+constexpr uint8_t IrqFlags1{0x80};
+constexpr uint8_t RssiThresh{0xff};
+constexpr uint8_t PreambleLsb{0x03};
+constexpr uint8_t SyncConfig{0x98};
+constexpr uint8_t PacketConfig1{0x10};
+constexpr uint8_t PayloadLength{0x40};
+constexpr uint8_t FifoThresh{0x0f};
+constexpr uint8_t PacketConfig2{0x02};
+constexpr uint8_t Temp1{0x01};
+constexpr uint8_t TestLna{0x1b};
+constexpr uint8_t TestPa1{0x55};
+constexpr uint8_t TestPa2{0x70};
+
+}  // namespace Reset
 
 // Register default/recommended values from Section 6.1, Table 23 in the data
 // sheet (where defined)
-struct Default final {
-#define VAL_T static constexpr uint8_t
-  VAL_T Lna{0x88};
-  VAL_T RxBw{0x55};
-  VAL_T AfcBw{0x8b};
-  VAL_T DioMapping2{0x07};
-  VAL_T RssiThresh{0xe4};
-  VAL_T SyncValueX{0x01};
-  VAL_T FifoThresh{0x8f};
-  VAL_T TestDagc{0x30};
-#undef VAL_T
-};
+namespace Default {
+
+constexpr uint8_t Lna{0x88};
+constexpr uint8_t RxBw{0x55};
+constexpr uint8_t AfcBw{0x8b};
+constexpr uint8_t DioMapping2{0x07};
+constexpr uint8_t RssiThresh{0xe4};
+constexpr uint8_t SyncValueX{0x01};
+constexpr uint8_t FifoThresh{0x8f};
+constexpr uint8_t TestDagc{0x30};
+
+}  // namespace Default
+
+}  // namespace Reg
 
 /*------------------------------------------------------------------------------
  * Register bit fields and values from Section 6 in the data sheet
@@ -164,6 +145,8 @@ struct Default final {
  *
  * These advantages are gained while preserving the potential for optimal code.
  */
+
+namespace Bits {
 
 // OpMode
 constexpr uint8_t SequencerOff{0x80};
@@ -198,7 +181,7 @@ enum DataModulModulationShapingFsk : uint8_t {
   ModulationShapingFskBt0p5,
   ModulationShapingFskBt0p3,
 };
-enum DataModulModulationShapingOok: uint8_t {
+enum DataModulModulationShapingOok : uint8_t {
   ModulationShapingOokNone,
   ModulationShapingOokCutoffBr,
   ModulationShapingOokCutoff2Br,
@@ -504,5 +487,7 @@ enum : uint8_t {
   ContinuousDagcImprovedAfcLowBetaOn = 0x20,
   ContinuousDagcImprovedAfcLowBetaOff = 0x30,
 };
+
+}  // namespace Bits
 
 }  // namespace rfm69hcw
