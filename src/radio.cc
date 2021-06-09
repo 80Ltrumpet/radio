@@ -66,13 +66,10 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
  */
 
 uint8_t node_addr_{0xff};
-void (*on_payload_ready_)(){};
-void (*on_packet_sent_)(){};
+Radio::EventHandler event_handler_{};
 
-// Shadow registers to optimize read-modify-write operations
-struct {
-  uint8_t OpMode{Reg::Reset::OpMode};
-} shadow_{};
+// Shadow register to optimize read-modify-write operations
+uint8_t op_mode_{Reg::Reset::OpMode};
 
 // Sets recommended defaults according to the data sheet.
 void set_defaults() {
@@ -117,7 +114,7 @@ void configure() {
   write(Reg::DataModul, buffer, kBufLen);
 
   // Set the channel filter bandwidth to 400 kHz with a 500 Hz DCC cutoff.
-  buffer[0] = buffer[1] = (7 << Bits::DccFreq_) | Bits::RxBwMant20;
+  buffer[0] = buffer[1] = (7 << DccFreq_) | RxBwMant20;
   write(Reg::RxBw, buffer, 2);
 
   // Use variable-length packets with DC-free whitening and CRC checks. Use
@@ -145,7 +142,7 @@ void configure() {
 }
 
 void set_listen(bool enable) {
-  auto op_mode{shadow_.OpMode};
+  auto op_mode{op_mode_};
   if ((op_mode & Bits::ListenOn) == enable) return;
 
   if (enable) {
@@ -158,15 +155,15 @@ void set_listen(bool enable) {
   }
 
   write(Reg::OpMode, op_mode);
-  shadow_.OpMode = op_mode;
+  op_mode_ = op_mode;
 }
 
 void set_op_mode(uint8_t mode) {
   set_listen(false);
-  if (auto op_mode{shadow_.OpMode}; (op_mode & Bits::Mode) != mode) {
+  if (auto op_mode{op_mode_}; (op_mode & Bits::Mode) != mode) {
     op_mode = (op_mode & ~Bits::Mode) | mode;
     write(Reg::OpMode, op_mode);
-    shadow_.OpMode = op_mode;
+    op_mode_ = op_mode;
   }
 }
 
@@ -243,19 +240,15 @@ void Init() {
   // is acknowledged. The root starts in the listening state.
 }
 
-void SetOnPayloadReady(void (*on_payload_ready)()) {
-  on_payload_ready_ = on_payload_ready;
-}
-
-void SetOnPacketSent(void (*on_packet_sent)()) {
-  on_packet_sent_ = on_packet_sent;
+void SetEventHandler(EventHandler&& handler) {
+  event_handler_ = static_cast<EventHandler&&>(handler);
 }
 
 uint8_t GetNodeAddress() { return node_addr_; }
 
 void Listen() {
   // Minor optimization (set_listen also checks this).
-  if (shadow_.OpMode & Bits::ListenOn) return;
+  if (op_mode_ & Bits::ListenOn) return;
 
   // Listen mode can only be enabled while in standby (idle).
   set_op_mode(Bits::ModeStdby);
@@ -274,13 +267,13 @@ void HandlePacket(void (*handler)(const Packet&)) {
   if (!(read(Reg::IrqFlags2) & Bits::PayloadReady)) return;
 
   {
-    AtomicLock lock{};
-
+    // Small optimization to perform the entire read in a single transaction.
+    Spi::Transaction spi{spi_};
+    spi.write(Reg::Fifo | Spi::kAddrRead);
     // Read the packet length.
-    auto length{buffer[0] = read(Reg::Fifo)};
-
+    spi.read(buffer, 1);
     // Read the rest of the packet.
-    read(Reg::Fifo, buffer + 1, length - 1);
+    spi.read(buffer + 1, buffer[0] - 1);
   }
 
   // Handle the packet.
@@ -291,6 +284,10 @@ void SendPacket(const Packet& packet) {
   // NOTE: This assumes that only one task is responsible for sending packets.
   // Otherwise, we would have to ensure that we are not in transmit mode, first.
   set_op_mode(Bits::ModeStdby);
+
+  // Switch the interrupt source to PacketSent.
+  write(Reg::DioMapping1, 0);
+
   write(Reg::Fifo, &packet, packet.length);
   set_op_mode(Bits::ModeTx);
 }
@@ -304,15 +301,11 @@ ISR(INT6_vect) {
   auto irq2{read(Reg::IrqFlags2)};
   if (irq2 & Bits::PayloadReady) {
     set_op_mode(Bits::ModeStdby);
-    if (on_payload_ready_) {
-      on_payload_ready_();
-    }
+    event_handler_.on_packet_sent();
   }
 
   if (irq2 & Bits::PacketSent) {
     set_op_mode(Bits::ModeStdby);
-    if (on_packet_sent_) {
-      on_packet_sent_();
-    }
+    event_handler_.on_packet_sent();
   }
 }

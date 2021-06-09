@@ -12,15 +12,34 @@ struct Packet final {
   uint8_t payload[0];
 };
 
+// These handlers are called from interrupt context.
+class EventHandler final {
+  using Callback = void (*)();
+
+ public:
+  EventHandler() = default;
+  EventHandler(const EventHandler&) = delete;
+  EventHandler(Callback payload_ready, Callback packet_sent)
+      : on_payload_ready_{payload_ready}, on_packet_sent_{packet_sent} {}
+
+  inline void on_payload_ready() {
+    if (on_payload_ready_) on_payload_ready_();
+  }
+
+  inline void on_packet_sent() {
+    if (on_packet_sent_) on_packet_sent_();
+  }
+
+ private:
+  Callback on_payload_ready_{};
+  Callback on_packet_sent_{};
+};
+
 void Init();
 
-// These handlers are called from interrupt context, so they should delegate
-// further processing to a task.
-void SetOnPayloadReady(void (*on_payload_ready)());
-void SetOnPacketSent(void (*on_packet_sent)());
-// TODO: Probably also need a timeout handler?
-
 uint8_t GetNodeAddress();
+
+void SetEventHandler(EventHandler&& handler);
 
 void Listen();
 

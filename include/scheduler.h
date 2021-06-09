@@ -10,6 +10,7 @@ class Task final {
   static constexpr uint64_t kPause{};
   static constexpr uint64_t kStart{1};
 
+  Task(const Task&) = delete;
   Task(const char* name, Runner runner, uint16_t period = 0,
        void* arg = nullptr, uint64_t start = kStart)
       : start_{start},
