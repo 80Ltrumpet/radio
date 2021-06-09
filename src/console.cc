@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "atomic.h"
 #include "command_registry.h"
 #include "scheduler.h"
 #include "timer.h"
@@ -112,6 +113,8 @@ bool need_prompt_{true};
 Escape escape_{Escape::None};
 History history_{};
 
+TaskHandle task_{};
+
 // Gets a single character of input.
 bool get_char(char& c) { return get_char_func_ ? get_char_func_(c) : false; }
 
@@ -139,9 +142,16 @@ bool poll_input() {
   }
 
   char c{};
-  if (!get_char(c)) {
-    // No input was received.
-    return false;
+  {
+    // These operations are performed atomically to prevent a race condition
+    // between checking for a character and a new character being received.
+    // This ensures the console task will not be paused when input is available.
+    AtomicLock lock{};
+    if (!get_char(c)) {
+      // No input was received.
+      Scheduler::PauseTask(task_);
+      return false;
+    }
   }
 
   if (c == '\0') {
@@ -420,7 +430,7 @@ bool poll_input() {
 }
 
 // Performs an iteration of the console task.
-void run([[maybe_unused]] void* arg) {
+void run() {
   if (!poll_input()) return;
 
   // Generate the argument vector.
@@ -451,9 +461,13 @@ namespace Console {
 
 void Init() {
   // Add the console task to the scheduler.
-  Scheduler::AddTask({"console", run});
+  task_ = Scheduler::AddTask({"console", run});
 }
 
 void SetGetChar(GetCharFunc func) { get_char_func_ = func; }
+
+void Notify() { 
+  Scheduler::RestartTask(task_);
+}
 
 }  // namespace Console

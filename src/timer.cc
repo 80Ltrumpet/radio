@@ -22,9 +22,9 @@ constexpr uint8_t kOvfMs{kOvfUs / 1000};
 constexpr uint8_t kOvfMsFrac{(kOvfUs % 1000) >> 3};
 constexpr uint8_t kMsFracMax{1000 >> 3};  // 125
 
-volatile uint64_t g_ovf_count{};
-volatile uint64_t g_millis{};
-uint8_t g_frac{};
+volatile uint64_t ovf_count_{};
+volatile uint64_t millis_{};
+uint8_t frac_{};
 
 }  // namespace
 
@@ -41,7 +41,7 @@ uint64_t Millis() {
   uint64_t millis;
   {
     AtomicLock lock{};
-    millis = g_millis;
+    millis = millis_;
   }
   return millis;
 }
@@ -51,7 +51,7 @@ uint64_t Micros() {
   uint8_t ticks;
   {
     AtomicLock lock{};
-    ovf_count = g_ovf_count;
+    ovf_count = ovf_count_;
     ticks = TCNT0;
 
     // Check if an overflow occurred before reading TCNT0.
@@ -110,15 +110,15 @@ void DelayUs(uint32_t us) {
 
 ISR(TIMER0_OVF_vect) {
   // Copy volatile variable to registers for speed.
-  uint64_t millis{g_millis};
+  uint64_t millis{millis_};
 
   millis += kOvfMs;
-  g_frac += kOvfMsFrac;
-  if (g_frac >= kMsFracMax) {
-    g_frac -= kMsFracMax;
+  frac_ += kOvfMsFrac;
+  if (frac_ >= kMsFracMax) {
+    frac_ -= kMsFracMax;
     ++millis;
   }
 
-  g_millis = millis;
-  ++g_ovf_count;
+  millis_ = millis;
+  ++ovf_count_;
 }

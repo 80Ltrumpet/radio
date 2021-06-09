@@ -17,4 +17,8 @@ void Init();
 // accepts user input.
 void SetGetChar(bool (*func)(char&));
 
+// Notifies the console that input is available. This is intended to be called
+// from interrupt context.
+void Notify();
+
 }  // namespace Console

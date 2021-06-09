@@ -99,6 +99,8 @@ ISR(USART0_RX_vect) {
       rx_.data[rx_.tail++ & (RingBuffer::kSize - 1)] = c;
     }
   }
+
+  Console::Notify();
 }
 
 ISR(USART0_UDRE_vect) {

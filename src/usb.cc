@@ -354,6 +354,10 @@ void configure_endpoint(const uint8_t* desc) {
             (type << EPTYPE0);
   if (type == UsbEndpointDesc::kAttrTransferBulk) {
     UECFG1X = epsize | _BV(EPBK0) | _BV(ALLOC);
+    // Enable the RXOUTI interrupt for bulk OUT endpoints.
+    if (!(ep.bEndpointAddress & UsbEndpointDesc::kAddrIn)) {
+      UEIENX = _BV(RXOUTE);
+    }
   } else {
     UECFG1X = epsize | _BV(ALLOC);
   }
@@ -532,7 +536,16 @@ ISR(USB_GEN_vect) {
 
 // Endpoint interrupt
 ISR(USB_COM_vect) {
-  // Endpoint interrupts are only enabled for endpoint 0.
+  // Check if this interrupt is for the CDC RX endpoint.
+  if (UEINT & _BV(kEndpointCdcRx)) {
+    UENUM = kEndpointCdcRx;
+    UEINTX &= ~_BV(RXOUTI);
+    Console::Notify();
+  }
+
+  // Everything else should be for the control endpoint.
+  if (!(UEINT & _BV(kEndpointControl))) return;
+
   UENUM = kEndpointControl;
 
   // We only care about SETUP interrupts.

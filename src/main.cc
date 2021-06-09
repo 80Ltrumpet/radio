@@ -1,6 +1,8 @@
 #include <avr/interrupt.h>
 
 #include "console.h"
+#include "network.h"
+#include "power.h"
 #include "radio.h"
 #include "scheduler.h"
 #include "spi.h"
@@ -9,6 +11,8 @@
 #include "usb.h"
 
 int main() {
+   Power::Init();
+
    Spi::Init();
    Timer::Init();
    Usart::Init();
@@ -18,6 +22,7 @@ int main() {
    
    Console::Init();
    Radio::Init();
+   Network::Init();
 
    Scheduler::Run();
 }
