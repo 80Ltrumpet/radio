@@ -201,9 +201,7 @@ void RadioCommand::CommandHandler([[maybe_unused]] int argc,
   if (errno != 0 || addr >= 0xff) {
     printf("Invalid hexadecimal byte \"%s\".\n", argv[2]);
   }
-  Eeprom::Update(Eeprom::Addr::NodeAddress, &addr, 1);
-  node_addr_ = addr;
-  write(Reg::NodeAdrs, node_addr_);
+  Radio::SetNodeAddress(addr);
 }
 
 const char* const RadioCommand::kCommandName{"radio"};
@@ -245,6 +243,12 @@ void SetEventHandler(EventHandler&& handler) {
 }
 
 uint8_t GetNodeAddress() { return node_addr_; }
+
+void SetNodeAddress(uint8_t addr) {
+  Eeprom::Update(Eeprom::Addr::NodeAddress, &addr, 1);
+  node_addr_ = addr;
+  write(Reg::NodeAdrs, node_addr_);
+}
 
 void Listen() {
   // Minor optimization (set_listen also checks this).

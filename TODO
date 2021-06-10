@@ -1,0 +1,2 @@
+* Move VerifyCommand to its own module.
+* Implement Network.

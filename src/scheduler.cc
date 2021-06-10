@@ -5,10 +5,6 @@
 #include "power.h"
 #include "timer.h"
 
-#if 1  // DEBUG
-#include <stdio.h>
-#endif
-
 // Internal task struct
 struct ScheduledTask final : public Task::Handle {
   ScheduledTask() = default;

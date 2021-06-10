@@ -38,6 +38,7 @@ class EventHandler final {
 void Init();
 
 uint8_t GetNodeAddress();
+void SetNodeAddress(uint8_t addr);
 
 void SetEventHandler(EventHandler&& handler);
 
