@@ -4,6 +4,7 @@
 #include <avr/io.h>
 
 #include "atomic.h"
+#include "power.h"
 
 namespace {
 
@@ -16,9 +17,9 @@ constexpr uint16_t kOvfUs{kTicksPerOvf * kUsPerTimerTick};
 // Whole number of milliseconds per overflow.
 constexpr uint8_t kOvfMs{kOvfUs / 1000};
 
-// Fractional number of milliseconds per overflow. Shifing right by three allows
-// it to fit in a byte without loss of precision (because F_CPU is a multiple of
-// eight).
+// Fractional number of milliseconds per overflow. Shifting right by three
+// allows it to fit in a byte without loss of precision (because F_CPU is a
+// multiple of eight).
 constexpr uint8_t kOvfMsFrac{(kOvfUs % 1000) >> 3};
 constexpr uint8_t kMsFracMax{1000 >> 3};  // 125
 
@@ -35,6 +36,10 @@ void Init() {
   TCCR0A |= _BV(WGM01) | _BV(WGM00);  // Fast PWM mode
   TCCR0B |= _BV(CS01) | _BV(CS00);    // 64x prescaler
   TIMSK0 |= _BV(TOIE0);               // Overflow interrupt
+
+  // This is called when timer/counter 0 and its related interrupts are
+  // disabled, so this will not race.
+  Power::SetTimerMutator([](uint16_t ms) { millis_ += ms; });
 }
 
 uint64_t Millis() {

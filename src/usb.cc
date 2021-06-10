@@ -118,26 +118,41 @@ PROGMEM const struct {
 static_assert(sizeof(kConfiguration_P) == 67,
               "USB configuration blob has an unexpected size");
 
-uint8_t g_wdtcsr_save{};
-uint8_t g_configuration{};
-CdcLineInfo g_cdc_line_info{};
+uint8_t wdtcsr_save_{};
+uint8_t configuration_{};
+CdcLineInfo cdc_line_info_{};
 
-FILE g_stream{};
+FILE stream_{};
 
 void enable_clock() {
-  // Power the internal regulator.
-  UHWCON |= _BV(UVREGE);
   // Freeze the clock and enable USB.
-  USBCON = _BV(USBE) | _BV(FRZCLK);
+  USBCON |= _BV(USBE) | _BV(FRZCLK);
   // Enable the PLL.
   PLLCSR = (PLLCSR & ~_BV(PINDIV)) | _BV(PLLE);
   // Wait for the PLL to lock.
   while (!(PLLCSR & _BV(PLOCK)))
     ;
-  // Start the clock and enable the VBUS pad.
-  USBCON = (USBCON & ~_BV(FRZCLK)) | _BV(OTGPADE);
+  // Start the clock.
+  USBCON &= ~_BV(FRZCLK);
   // Attach internal pull-up for full-speed mode.
   UDCON = 0;
+}
+
+void disable_clock() {
+  // Disable USB and freeze the clock.
+  USBCON = (USBCON & ~_BV(USBE)) | _BV(FRZCLK);
+  // Stop the PLL.
+  PLLCSR &= ~_BV(PLLE);
+  // We are definitely no longer configured at this point.
+  configuration_ = 0;
+}
+
+void handle_vbus() {
+  if (USBSTA & _BV(VBUS)) {
+    enable_clock();
+  } else {
+    disable_clock();
+  }
 }
 
 inline void wait_txin() {
@@ -220,7 +235,7 @@ bool send_control(const void* buffer, uint8_t length, uint16_t limit,
 
 // Input hook for Console
 bool get_char(char& c) {
-  if (g_configuration == 0) return false;
+  if (configuration_ == 0) return false;
   EpLock lock{kEndpointCdcRx};
   if (!(UEINTX & _BV(RWAL))) return false;
   c = UEDATX;
@@ -232,7 +247,7 @@ bool get_char(char& c) {
 
 // Output hook for stdio
 int put_char(char c, FILE* stream) {
-  if (g_configuration == 0) return _FDEV_ERR;
+  if (configuration_ == 0) return _FDEV_ERR;
   if (c == '\n' && put_char('\r', stream) != 0) return _FDEV_ERR;
 
   static constexpr uint8_t kTimeoutMs{25};
@@ -255,7 +270,7 @@ int put_char(char c, FILE* stream) {
       return _FDEV_ERR;
     }
     // Check if we got un-configured.
-    if (g_configuration == 0) return _FDEV_ERR;
+    if (configuration_ == 0) return _FDEV_ERR;
     lock.lock();
   }
 
@@ -272,17 +287,19 @@ int put_char(char c, FILE* stream) {
 namespace Usb {
 
 void Init() {
-  g_configuration = 0;
-
-  enable_clock();
-
+  // Power the internal regulator.
+  UHWCON = _BV(UVREGE);
+  // Enable hotplug detection.
+  USBCON |= _BV(OTGPADE) | _BV(VBUSTE);
   // Enable end-of-reset and start-of-frame interrupts.
   UDIEN = _BV(EORSTE) | _BV(SOFE);
 
+  handle_vbus();
+
   // Set up stdout/stderr for printf-related functions.
-  fdev_setup_stream(&g_stream, put_char, nullptr, _FDEV_SETUP_WRITE);
-  stdout = &g_stream;
-  stderr = &g_stream;
+  fdev_setup_stream(&stream_, put_char, nullptr, _FDEV_SETUP_WRITE);
+  stdout = &stream_;
+  stderr = &stream_;
 
   // Hook input into the console.
   Console::SetGetChar(get_char);
@@ -411,7 +428,7 @@ bool handle_standard_request(const UsbSetupData& setup) {
       if (setup.requestType.recipient == UsbSetupData::kRecipDevice) {
         ack_txin();
         configure_endpoints();
-        g_configuration = setup.valueL;
+        configuration_ = setup.valueL;
       } else {
         // Bad request.
         success = false;
@@ -428,16 +445,16 @@ bool handle_standard_request(const UsbSetupData& setup) {
 bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
   if (setup.requestType.direction == UsbSetupData::kDirDeviceToHost) {
     if (setup.bRequest == kCdcReqGetLineCoding) {
-      return send_control(&g_cdc_line_info.coding, CdcLineInfo::Coding::kSize,
+      return send_control(&cdc_line_info_.coding, CdcLineInfo::Coding::kSize,
                           setup.wLength);
     }
   } else {  // kDirHostToDevice
     switch (setup.bRequest) {
       case kCdcReqSetLineCoding:
-        recv_control(&g_cdc_line_info.coding, CdcLineInfo::Coding::kSize);
+        recv_control(&cdc_line_info_.coding, CdcLineInfo::Coding::kSize);
         return true;
       case kCdcReqSetControlLineState:
-        g_cdc_line_info.state = setup.valueL;
+        cdc_line_info_.state = setup.valueL;
         wait_txin();
         ack_txin();
 
@@ -455,8 +472,8 @@ bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
           p_magic_key = p_ram_end;
         }
 
-        if (g_cdc_line_info.coding.dwDTERate == 1200 &&
-            !(g_cdc_line_info.state & _BV(0))) {
+        if (cdc_line_info_.coding.dwDTERate == 1200 &&
+            !(cdc_line_info_.state & _BV(0))) {
           // Backup the RAM location for the magic key if we aren't using a
           // newer bootloader and it hasn't already been overwritten.
           if (p_boot_key != p_ram_end && p_magic_key != p_ram_end &&
@@ -468,14 +485,14 @@ bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
           *p_magic_key = Bootloader::kMagicKey;
 
           // Save the watchdog state in case the reset is aborted.
-          g_wdtcsr_save = WDTCSR;
+          wdtcsr_save_ = WDTCSR;
           wdt_enable(WDTO_120MS);
         } else if (*p_magic_key == Bootloader::kMagicKey) {
           // If the data rate was set to something besides 1200 bps, cancel
           // the watchdog.
           wdt_reset();
           WDTCSR |= _BV(WDCE) | _BV(WDE);
-          WDTCSR = g_wdtcsr_save;
+          WDTCSR = wdtcsr_save_;
 
           // If a backup was necessary (see above), restore it.
           if (p_boot_key != p_ram_end && p_magic_key != p_ram_end) {
@@ -512,12 +529,19 @@ bool handle_class_or_interface_request(const UsbSetupData& setup) {
 
 // General interrupt
 ISR(USB_GEN_vect) {
+  auto usbint{USBINT};
   auto udint{UDINT};
+  USBINT &= ~usbint;
   UDINT &= ~udint;
+
+  // VBUS transition
+  if (usbint & _BV(VBUSTI)) {
+    handle_vbus();
+  }
 
   // End Of Reset
   if (udint & _BV(EORSTI)) {
-    g_configuration = 0;
+    configuration_ = 0;
     UENUM = kEndpointControl;
     UECONX = _BV(EPEN);                                  // Enable endpoint 0
     UECFG0X = 0;                                         // Control type
@@ -526,7 +550,7 @@ ISR(USB_GEN_vect) {
   }
 
   // Start Of Frame (occurs every millisecond)
-  if ((udint & _BV(SOFI)) && g_configuration != 0) {
+  if ((udint & _BV(SOFI)) && configuration_ != 0) {
     UENUM = kEndpointCdcTx;
     if (UEBCX > 0) {   // If there's something in the FIFO...
       release_txin();  // ... send it and switch banks.

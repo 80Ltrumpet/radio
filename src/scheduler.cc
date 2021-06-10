@@ -55,54 +55,48 @@ int8_t GetProvisioning() {
 }
 
 void Run() {
-  // TODO: Right now, this sleep strategy is fine, but it will not work well if
-  // a task has a long period. This will be true when the radio network is
-  // implemented, as it will need to periodically send packets, check ACK
-  // timeouts, etc. This can be handled as follows:
-  //
-  // If a task has run before the spin timeout:
-  //   Reset the spin timeout.
-  // Else:
-  //   If the next task time can be configured in a timer:
-  //     Configure a timer to fire an interrupt after the intervening duration.
-  //   Else:
-  //     Configure a timer to fire after the largest interval possible.
-  //   Sleep.
-  // On wake:
-  //   Add the equivalent number of milliseconds to Timer::millis_.
-  //   (NOTE: This will need to be entirely based on the state of the timer's
-  //   registers, most likely TCNTX or whatever else can be incremented without
-  //   waking up the MCU.)
-
-  // If all tasks are paused for at least 10 milliseconds, go to sleep.
-  constexpr uint64_t kSleepTimeoutUs{10000};
+  // If no tasks are run for at least 10 milliseconds, go to sleep.
+  constexpr uint64_t kSpinTimeoutUs{10000};
   const auto kTaskCount{get_task_count()};
-  auto next_sleep_us{Timer::Micros() + kSleepTimeoutUs};
+  auto spin_us{Timer::Micros() + kSpinTimeoutUs};
   for (;;) {
-    bool paused{false};
+    bool spinning{false};
+    uint64_t next_until{};
     for (current_task_ = 0; current_task_ < kTaskCount; ++current_task_) {
       auto& task{tasks_[current_task_]};
       // Skip tasks that are undefined, paused, or need to wait.
-      auto task_paused{!task.runner || task.until == Task::kPause};
-      paused = paused || task_paused;
-      if (task_paused || Timer::Millis() < task.until) {
+      if (!task.runner || task.until == Task::kPause) continue;
+      if (Timer::Millis() < task.until) {
+        if (next_until == 0 || task.until < next_until) next_until = task.until;
         continue;
       }
+      spinning = false;
+      // TODO: Need to handle long periods.
       task.runner();
       // The task may pause itself while running.
       if (task.until != Task::kPause) {
         task.until = Timer::Millis() + task.period;
+        if (next_until == 0 || task.until < next_until) next_until = task.until;
       }
     }
 
-    // Sleep if all tasks have been paused for a while.
-    if (paused) {
-      if (Timer::Micros() >= next_sleep_us) {
-        Power::SleepIdle();
-        next_sleep_us = Timer::Micros() + kSleepTimeoutUs;
+    // Sleep if no tasks have run for a while.
+    if (spinning) {
+      if (Timer::Micros() >= spin_us) {
+        if (next_until == 0) {
+          Power::Sleep();
+        } else if (auto now{Timer::Millis()}; now < next_until) {
+          auto sleep_ms{next_until - now};
+          Power::Sleep(sleep_ms < UINT16_MAX ? static_cast<uint16_t>(sleep_ms)
+                                             : UINT16_MAX);
+        }
+        // Otherwise, we just happened to hit the spin timeout before the timer
+        // rolled (extremely unlikely).
+        goto reset_spin_us;
       }
     } else {
-      next_sleep_us = Timer::Micros() + kSleepTimeoutUs;
+    reset_spin_us:
+      spin_us = Timer::Micros() + kSpinTimeoutUs;
     }
   }
 }
