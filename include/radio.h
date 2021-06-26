@@ -6,11 +6,16 @@
 // module (task).
 namespace Radio {
 
+constexpr uint8_t kInvalidAddr{0xff};
+constexpr uint8_t kBroadcastAddr{RADIO_BROADCAST_ADDR};
+
 struct Packet final {
-  uint8_t length;  // Includes this byte and the address byte.
-  uint8_t address;
+  const uint8_t length;  // Includes this byte (total packet length).
+  const uint8_t dest;
+  const uint8_t src;
   uint8_t payload[0];
 };
+static_assert(sizeof(Packet) == 3, "Radio::Packet has wrong size.");
 
 // These handlers are called from interrupt context.
 class EventHandler final {
@@ -45,6 +50,6 @@ void SetEventHandler(EventHandler&& handler);
 void Listen();
 
 void HandlePacket(void (*handler)(const Packet&));
-void SendPacket(const Packet& packet);
+bool SendPacket(uint8_t dest, const void* data, uint8_t length);
 
 }  // namespace Radio

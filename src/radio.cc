@@ -10,6 +10,7 @@
 #include "atomic.h"
 #include "command_registry.h"
 #include "eeprom.h"
+#include "gpio.h"
 #include "rfm69hcw.h"
 #include "scheduler.h"
 #include "spi.h"
@@ -19,27 +20,36 @@ using namespace rfm69hcw;
 
 namespace {
 
-/*------------------------------------------------------------------------------
- * Constants and types
- */
 constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
-constexpr uint8_t kBroadcastAddr{RADIO_BROADCAST_ADDR};
+
+// The slave select and reset pins are board-specific.
+#if defined(ARDUINO_AVR_MEGA2560)
+Gpio ss_{PINL, 0};
+Gpio rst_{PINL, 1};
+#elif defined(ARDUINO_AVR_FEATHER32U4)
+Gpio ss_{PINB, 4};
+Gpio rst_{PIND, 4};
+#else
+#error "Unknown board type."
+#endif
 
 /*------------------------------------------------------------------------------
  * SPI
  */
-void slave_select(bool select) {
+void ss_select(bool select) {
   // SS is asserted low and has an external pull-up.
   if (select) {
     // Current drain
-    DDRB |= _BV(DDB4);
+    ss_.out();
   } else {
     // External pull-up
-    DDRB &= ~_BV(DDB4);
+    ss_.in();
   }
 }
 
-const Spi spi_{slave_select, []() { PORTB &= ~_BV(PORTB4); }};
+void ss_config() { ss_.clear(); }
+
+const Spi spi_{ss_select, ss_config};
 
 void read(uint8_t addr, void* buffer, uint8_t length) {
   Spi::Transaction spi{spi_};
@@ -65,7 +75,7 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
  * Radio stuff
  */
 
-uint8_t node_addr_{0xff};
+uint8_t node_addr_{Radio::kInvalidAddr};
 Radio::EventHandler event_handler_{};
 
 // Shadow register to optimize read-modify-write operations
@@ -124,9 +134,11 @@ void configure() {
 
   // Read the node address programmed into the EEPROM.
   Eeprom::Read(Eeprom::Addr::NodeAddress, &node_addr_, sizeof(node_addr_));
+  // If the node address is the same as the broadcast address, mark it invalid.
+  if (node_addr_ == Radio::kBroadcastAddr) node_addr_ = Radio::kInvalidAddr;
   // Set the node and broadcast addresses.
   buffer[0] = node_addr_;
-  buffer[1] = kBroadcastAddr;
+  buffer[1] = Radio::kBroadcastAddr;
   write(Reg::NodeAdrs, buffer, 2);
 
   // Configure listen timings to an 80% duty cycle with ~80 milliseconds of Rx
@@ -169,58 +181,20 @@ void set_op_mode(uint8_t mode) {
 
 }  // namespace
 
-/*------------------------------------------------------------------------------
- * Command
- */
-class RadioCommand final {
- public:
-  static void CommandHandler(int argc, const char* argv[]);
-  static const char* const kCommandName;
-
- private:
-  static const bool registered;
-};
-
-void RadioCommand::CommandHandler([[maybe_unused]] int argc,
-                                  [[maybe_unused]] const char* argv[]) {
-  // TODO: Eventually, this should move to the network layer. Once a valid node
-  // address is assigned, the node can start attempting to participate in the
-  // network.
-  if (argc < 2 || strcmp(argv[1], "addr") != 0) {
-    puts("Usage: radio addr [ADDRESS]");
-    return;
-  }
-
-  if (argc < 3) {
-    printf("%02" PRIx8 "\n", node_addr_);
-    return;
-  }
-
-  errno = 0;
-  auto addr{strtol(argv[2], nullptr, 16)};
-  if (errno != 0 || addr >= 0xff) {
-    printf("Invalid hexadecimal byte \"%s\".\n", argv[2]);
-  }
-  Radio::SetNodeAddress(addr);
-}
-
-const char* const RadioCommand::kCommandName{"radio"};
-const bool RadioCommand::registered{
-    CommandRegistry::RegisterCommand<RadioCommand>()};
+namespace Radio {
 
 /*------------------------------------------------------------------------------
  * Public API
  */
-namespace Radio {
-
 void Init() {
   // Make sure the reset line is floating.
-  DDRD &= ~_BV(DDD4);
-  PORTD &= ~_BV(PORTD4);
+  rst_.in();
+  rst_.clear();
 
   // Wait until the reset line is low.
-  while (PIND & _BV(PIND4))
+  while (rst_.get())
     ;
+
   // Wait at least 10 milliseconds to ensure the chip is out of reset.
   Timer::DelayMs(10);
 
@@ -284,7 +258,11 @@ void HandlePacket(void (*handler)(const Packet&)) {
   handler(*reinterpret_cast<const Packet*>(buffer));
 }
 
-void SendPacket(const Packet& packet) {
+bool SendPacket(uint8_t dest, const void* data, uint8_t length) {
+  // Can't send a packet that is longer than the FIFO.
+  const auto total_length{length + sizeof(Packet)};
+  if (total_length > kFifoSize) return false;
+
   // NOTE: This assumes that only one task is responsible for sending packets.
   // Otherwise, we would have to ensure that we are not in transmit mode, first.
   set_op_mode(Bits::ModeStdby);
@@ -292,8 +270,18 @@ void SendPacket(const Packet& packet) {
   // Switch the interrupt source to PacketSent.
   write(Reg::DioMapping1, 0);
 
-  write(Reg::Fifo, &packet, packet.length);
+  {
+    // Small optimization to perform the entire write in a single transaction.
+    Spi::Transaction spi{spi_};
+    spi.write(Reg::Fifo | Spi::kAddrWrite);
+    spi.write(total_length);
+    spi.write(dest);
+    spi.write(GetNodeAddress());
+    spi.write(data, length);
+  }
+
   set_op_mode(Bits::ModeTx);
+  return true;
 }
 
 }  // namespace Radio
