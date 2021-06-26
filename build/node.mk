@@ -6,7 +6,7 @@ DEFINES := -DF_CPU=8000000L -DARDUINO_AVR_FEATHER32U4 -DARDUINO_ARCH_AVR
 DEFINES += -DUSB_VID=0x239A -DUSB_PID=0x800C "-DUSB_MANUFACTURER=\"Adafruit\""
 DEFINES += "-DUSB_PRODUCT=\"Feather 32u4\"" "-DUSB_SERIAL_NUMBER=\"\""
 
-CPPFLAGS := -fpermissive -fno-threadsafe-statics -Wno-error-narrowing
+CPPFLAGS := -fpermissive -Wno-error-narrowing
 
 USER_COM := COM7
 BOOT_COM := COM5

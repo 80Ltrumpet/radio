@@ -51,7 +51,7 @@ int put_char(char c, FILE* stream) {
   if (c == '\n' && put_char('\r', stream) != 0) return _FDEV_ERR;
 
   // Wait until there is room in the transmit buffer.
-  constexpr uint64_t kTxTimeoutMs{50};
+  constexpr uint64_t kTxTimeoutMs{5};
   const auto timeout{Timer::Millis() + kTxTimeoutMs};
   while (tx_.tail - tx_.head >= RingBuffer::kSize) {
     if (Timer::Millis() >= timeout) return _FDEV_ERR;

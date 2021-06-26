@@ -39,7 +39,13 @@ void Init() {
 
   // This is called when timer/counter 0 and its related interrupts are
   // disabled, so this will not race.
-  Power::SetTimerMutator([](uint16_t ms) { millis_ += ms; });
+  Power::SetTimerMutator([](uint16_t ms) {
+    const auto ovfs{ms / kOvfMs};
+    const auto frac{frac_ + static_cast<uint32_t>(ovfs) * kOvfMsFrac};
+    ovf_count_ += ovfs;
+    millis_ += ms + frac / kMsFracMax;
+    frac_ = frac % kMsFracMax;
+  });
 }
 
 uint64_t Millis() {

@@ -50,8 +50,8 @@ int8_t GetProvisioning() {
 }
 
 void Run() {
-  // If no tasks are run for at least 10 milliseconds, go to sleep.
-  constexpr uint64_t kSpinTimeoutUs{10000};
+  // If no tasks are run for at least 5 milliseconds, go to sleep.
+  constexpr uint64_t kSpinTimeoutUs{5000};
   const auto kTaskCount{get_task_count()};
   auto spin_us{Timer::Micros() + kSpinTimeoutUs};
   for (;;) {
@@ -63,7 +63,8 @@ void Run() {
       if (!task.runner || task.until == Task::kPause) continue;
       if (Timer::Millis() < task.until) {
         // next_until is only meaningful when spinning.
-        if (spinning && (next_until == 0 || task.until < next_until)) {
+        if (spinning &&
+            (next_until == Task::kPause || task.until < next_until)) {
           next_until = task.until;
         }
         continue;
@@ -80,7 +81,7 @@ void Run() {
     // Sleep if no tasks have run for a while.
     if (spinning) {
       if (Timer::Micros() < spin_us) continue;
-      if (next_until == 0) {
+      if (next_until == Task::kPause) {
         Power::Sleep();
       } else if (auto now{Timer::Millis()}; now < next_until) {
         auto sleep_ms{next_until - now};

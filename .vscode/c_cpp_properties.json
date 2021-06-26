@@ -47,6 +47,7 @@
         "F_CPU=16000000UL",
         "ARDUINO_AVR_MEGA2560",
         "BAUD=9600",
+        "ANDRUIO_CONFIG_ROOT",
         "${commonDefines}"
       ],
       "includePath": [

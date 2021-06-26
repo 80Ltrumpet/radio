@@ -54,7 +54,7 @@ CXX := $(AVR_TOOLS)/bin/avr-g++
 CFLAGS := -std=c11
 CXXFLAGS := -std=c++17
 CPPFLAGS := $(CPPFLAGS) $(COMMON_FLAGS) -w -ffunction-sections -fdata-sections
-CPPFLAGS += -fno-exceptions $(DEFINES) $(INCDIRS)
+CPPFLAGS += -fno-exceptions -fno-threadsafe-statics $(DEFINES) $(INCDIRS)
 LDFLAGS := $(LDFLAGS) $(COMMON_FLAGS) -fuse-linker-plugin -Wl,--gc-sections
 
 .PHONY: all

@@ -45,7 +45,7 @@ void Spi::Init() {
   DDRB = (DDRB | _BV(DDB2) | _BV(DDB1)) & ~_BV(DDB0);
   PORTB |= _BV(PORTB0);
 
-  // Master SPI in mode 0 at 4 MHz
+  // Master SPI in mode 0 (max 8 MHz for 16 MHz F_OSC)
   SPCR = _BV(SPE) | _BV(MSTR);
   SPSR = _BV(SPI2X);
 }

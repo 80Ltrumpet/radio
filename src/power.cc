@@ -5,42 +5,29 @@
 
 #include "atomic.h"
 
-#if defined(ARDUINO_AVR_MEGA2560)
-#define LED_DDR DDRB
-#define LED_PORT PORTB
-#define LED_MASK _BV(7)
-#elif defined(ARDUINO_AVR_FEATHER32U4)
-#define LED_DDR DDRC
-#define LED_PORT PORTC
-#define LED_MASK _BV(7)
-#else
-#error "Power LED macros are undefined."
-#endif
-
 namespace {
 
 constexpr uint8_t kTicksPerUs{F_CPU / 1000000};
 constexpr uint16_t kTimerPrescaler{1024};
-constexpr uint8_t kUsPerTimerTick{kTimerPrescaler / kTicksPerUs};
+constexpr uint32_t kUsPerTimerTick{kTimerPrescaler / kTicksPerUs};
 constexpr uint16_t kTimerMaxMs{UINT16_MAX * kUsPerTimerTick / 1000};
 
 using TimerMutator = void (*)(uint16_t);
 
 TimerMutator timer_mutator_{};
-uint16_t tcnt1_{};
-
-inline void led_init() { LED_DDR |= LED_MASK; }
-inline void led_on() { LED_PORT |= LED_MASK; }
-inline void led_off() { LED_PORT &= ~LED_MASK; }
 
 }  // namespace
 
 namespace Power {
 
 void Init() {
-  // Light the LED. It will indicate if the CPU is awake.
-  led_init();
-  led_on();
+  // Configure the sleep timer for long-term, low-resolution, operation.
+  // Note: This timer is disabled below. It is enabled when needed in Sleep().
+  OCR1A = UINT16_MAX;
+  TCCR1A = 0;
+  TCCR1B = _BV(CS12) | _BV(CS10);  // 1024x prescaler
+  TIMSK1 = _BV(OCIE1A);
+  TIFR1 = _BV(OCF1A);
 
   // Disable the analog comparator.
   ACSR = _BV(ACD);
@@ -97,11 +84,6 @@ void Init() {
       ;
 #undef ENABLE
 #undef DISABLE
-
-  // Configure the sleep timer for long-term, low-resolution, operation.
-  // Note that this timer is explicitly disabled above.
-  TCCR1B = _BV(WGM12) | _BV(CS12) | _BV(CS10);  // CTC, 1024x prescaler
-  TIMSK1 = _BV(OCIE1A);
 }
 
 void SetTimerMutator(TimerMutator mutator) { timer_mutator_ = mutator; }
@@ -114,34 +96,37 @@ void Sleep(uint16_t sleep_ms) {
   // Timer/counter 0 interrupts will immediately wake up the MCU.
   PRR0 |= _BV(PRTIM0);
 
-  // Enable timer/counter 1 (sleep timer).
   if (sleep_ms > 0) {
-    // Configure the sleep timer.
     sleep_ms = sleep_ms < kTimerMaxMs ? sleep_ms : kTimerMaxMs;
-    TCNT1 = tcnt1_ = 0;
-    // Due to truncation, this is guaranteed not to exceed UINT16_MAX.
-    OCR1A = sleep_ms * 1000 / kUsPerTimerTick;
+  } else {
+    sleep_ms = kTimerMaxMs;
+  }
+
+  {
+    AtomicLock lock{};
+    // Enable timer/counter 1 (sleep timer).
     PRR0 &= ~_BV(PRTIM1);
+    // Due to truncation, this is guaranteed not to exceed UINT16_MAX.
+    OCR1A = sleep_ms * 1000UL / kUsPerTimerTick;
+    TCNT1 = 0;
+    TIFR1 = _BV(OCF1A);
   }
 
   // Enable the Idle sleep mode and execute the sleep instruction.
-  led_off();
   SMCR = _BV(SE);
   __asm__ __volatile__(
       "sleep"
       "\n\t" ::);
   SMCR = 0;
-  led_on();
 
   // Disable the sleep timer and mutate the event timer.
-  if (sleep_ms > 0) {
-    PRR0 |= _BV(PRTIM1);
-    if (timer_mutator_) {
-      if (tcnt1_ == 0) {
-        sleep_ms = TCNT1 * kUsPerTimerTick / 1000;
-      }
-      timer_mutator_(sleep_ms);
+  if (timer_mutator_) {
+    {
+      AtomicLock lock{};
+      sleep_ms = TCNT1 * kUsPerTimerTick / 1000;
     }
+    PRR0 |= _BV(PRTIM1);
+    timer_mutator_(sleep_ms);
   }
 
   // Reenable the quashed interrupts.
@@ -153,4 +138,4 @@ void Sleep(uint16_t sleep_ms) {
 
 }  // namespace Power
 
-ISR(TIMER1_COMPA_vect) { tcnt1_ = TCNT1; }
+ISR(TIMER1_COMPA_vect) {}
