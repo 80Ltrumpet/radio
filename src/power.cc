@@ -4,6 +4,7 @@
 #include <avr/io.h>
 
 #include "atomic.h"
+#include "led.h"
 
 namespace {
 
@@ -112,12 +113,17 @@ void Sleep(uint16_t sleep_ms) {
     TIFR1 = _BV(OCF1A);
   }
 
+  // Turn off the LED while asleep.
+  Led::Off();
+
   // Enable the Idle sleep mode and execute the sleep instruction.
   SMCR = _BV(SE);
   __asm__ __volatile__(
       "sleep"
       "\n\t" ::);
   SMCR = 0;
+
+  Led::On();
 
   // Disable the sleep timer and mutate the event timer.
   if (timer_mutator_) {

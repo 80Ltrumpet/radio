@@ -26,9 +26,11 @@ constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
 #if defined(ARDUINO_AVR_MEGA2560)
 Gpio ss_{PINL, 0};
 Gpio rst_{PINL, 1};
+Gpio int_{PINE, 5};
 #elif defined(ARDUINO_AVR_FEATHER32U4)
 Gpio ss_{PINB, 4};
 Gpio rst_{PIND, 4};
+Gpio int_{PINE, 6};
 #else
 #error "Unknown board type."
 #endif
@@ -102,7 +104,7 @@ void configure() {
   const uint8_t kSyncWordsLength{sizeof(kSyncWords)};
   write(Reg::SyncValue, kSyncWords, kSyncWordsLength);
   // If the length is not equal to the default, configure it.
-  if (auto sync_config{Reg::Reset::SyncConfig};
+  if (auto sync_config{read(Reg::SyncConfig)};
       (sync_config & SyncSize) != (Reg::Reset::SyncConfig & SyncSize)) {
     sync_config &= ~SyncSize;
     sync_config |= (kSyncWordsLength - 1) << SyncSize_;
@@ -116,10 +118,10 @@ void configure() {
       0x00,  // BitRateMsb
       0xa0,  // BitRateLsb
       0x0c,  // FdevMsb
-      0xce,  // FdevLsb
+      0xcd,  // FdevLsb
       0x6c,  // FrfMsb
-      0x4f,  // FrfMid
-      0xf8,  // FrfLsb
+      0x40,  // FrfMid
+      0x00,  // FrfLsb
   };
   write(Reg::DataModul, buffer, kBufLen);
 
@@ -175,6 +177,9 @@ void set_op_mode(uint8_t mode) {
   if (auto op_mode{op_mode_}; (op_mode & Bits::Mode) != mode) {
     op_mode = (op_mode & ~Bits::Mode) | mode;
     write(Reg::OpMode, op_mode);
+    // Wait for the mode to change.
+    while (!(read(Reg::IrqFlags1) & Bits::ModeReady))
+      ;
     op_mode_ = op_mode;
   }
 }
@@ -187,6 +192,15 @@ namespace Radio {
  * Public API
  */
 void Init() {
+#if defined(ARDUINO_AVR_MEGA2560)
+  // Use the reset line as an output.
+  rst_.set();
+  rst_.out();
+
+  // Pulse reset high for at least 100 microseconds.
+  Timer::DelayUs(100);
+  rst_.clear();
+#elif defined(ARDUINO_AVR_FEATHER32U4)
   // Make sure the reset line is floating.
   rst_.in();
   rst_.clear();
@@ -194,22 +208,25 @@ void Init() {
   // Wait until the reset line is low.
   while (rst_.get())
     ;
+#endif
 
   // Wait at least 10 milliseconds to ensure the chip is out of reset.
   Timer::DelayMs(10);
 
   // Configure the external interrupt (rising edge)
-  DDRB &= ~_BV(DDB6);
-  PORTB &= ~_BV(PORTB6);
+  int_.in();
+  int_.clear();
+#if defined(ARDUINO_AVR_MEGA2560)
+  EICRB = _BV(ISC51) | _BV(ISC50);
+  EIMSK |= _BV(INT5);
+#elif defined(ARDUINO_AVR_FEATHER32U4)
   EICRB = _BV(ISC61) | _BV(ISC60);
   EIMSK |= _BV(INT6);
+#endif
 
+  set_op_mode(Bits::ModeStdby);
   set_defaults();
   configure();
-
-  // TODO: At this point, the network layer should manage the state machine.
-  // Nodes should start by periodically broadcasting discovery packets until one
-  // is acknowledged. The root starts in the listening state.
 }
 
 void SetEventHandler(EventHandler&& handler) {
@@ -241,8 +258,7 @@ void HandlePacket(void (*handler)(const Packet&)) {
   // NOTE: Packets greater than the length of the FIFO are not allowed.
   static uint8_t buffer[kFifoSize]{};
 
-  // Check if we even have a packet.
-  if (!(read(Reg::IrqFlags2) & Bits::PayloadReady)) return;
+  if (!(read(Reg::IrqFlags2) & Bits::FifoNotEmpty)) return;
 
   {
     // Small optimization to perform the entire read in a single transaction.
@@ -250,8 +266,8 @@ void HandlePacket(void (*handler)(const Packet&)) {
     spi.write(Reg::Fifo | Spi::kAddrRead);
     // Read the packet length.
     spi.read(buffer, 1);
-    // Read the rest of the packet.
-    spi.read(buffer + 1, buffer[0] - 1);
+    // Read the message.
+    spi.read(buffer + 1, buffer[0]);
   }
 
   // Handle the packet.
@@ -274,7 +290,8 @@ bool SendPacket(uint8_t dest, const void* data, uint8_t length) {
     // Small optimization to perform the entire write in a single transaction.
     Spi::Transaction spi{spi_};
     spi.write(Reg::Fifo | Spi::kAddrWrite);
-    spi.write(total_length);
+    // The length byte is not included in the total.
+    spi.write(total_length - 1);
     spi.write(dest);
     spi.write(GetNodeAddress());
     spi.write(data, length);
@@ -289,11 +306,15 @@ bool SendPacket(uint8_t dest, const void* data, uint8_t length) {
 /*------------------------------------------------------------------------------
  * Interrupt handler
  */
+#if defined(ARDUINO_AVR_MEGA2560)
+ISR(INT5_vect) {
+#elif defined(ARDUINO_AVR_FEATHER32U4)
 ISR(INT6_vect) {
+#endif
   auto irq2{read(Reg::IrqFlags2)};
   if (irq2 & Bits::PayloadReady) {
     set_op_mode(Bits::ModeStdby);
-    event_handler_.on_packet_sent();
+    event_handler_.on_payload_ready();
   }
 
   if (irq2 & Bits::PacketSent) {

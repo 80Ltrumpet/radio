@@ -1,6 +1,5 @@
 #include "network.h"
 
-#include <avr/pgmspace.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,8 +82,7 @@ void NetworkCommand::CommandHandler(int argc, const char* argv[]) {
 
 void NetworkCommand::PrintUsage() {
   // TODO: Add other subcommands.
-  static PROGMEM const char* const kUsage{"Usage: net addr [<addr>]\n"};
-  printf_P(kUsage);
+  printf("Usage: net addr [<addr>]\n");
 }
 
 void NetworkCommand::SubcommandAddr(int argc, const char* argv[]) {
@@ -96,8 +94,7 @@ void NetworkCommand::SubcommandAddr(int argc, const char* argv[]) {
 
 #ifdef ANDRUIO_CONFIG_ROOT
   if (current_node_address != kRootAddr) {
-    static PROGMEM const char* const kFmt{"Setting root address.\n"};
-    printf_P(kFmt);
+    printf("Setting root address.\n");
     Radio::SetNodeAddress(kRootAddr);
     // TODO: Restart the state machine.
   }
@@ -107,17 +104,15 @@ void NetworkCommand::SubcommandAddr(int argc, const char* argv[]) {
   errno = 0;
   auto addr{strtoul(*argv, nullptr, 16)};
   if (errno != 0 || addr > UINT8_MAX || addr == Radio::kInvalidAddr) {
-    static PROGMEM const char* const kFmt{"Invalid hex node address \"%s\".\n"};
-    printf_P(kFmt, *argv);
+    printf("Invalid hex node address \"%s\".\n", *argv);
     return;
   }
 
   auto new_node_address{static_cast<uint8_t>(addr)};
   if (new_node_address == Radio::kBroadcastAddr ||
       new_node_address == kRootAddr) {
-    static PROGMEM const char* const kFmt{
-        "The node address must be distinct from the %s address.\n"};
-    printf_P(kFmt, new_node_address == kRootAddr ? "root" : "broadcast");
+    printf("The node address must be distinct from the %s address.\n",
+           new_node_address == kRootAddr ? "root" : "broadcast");
     return;
   }
 
@@ -132,9 +127,7 @@ void NetworkCommand::SubcommandAddr(int argc, const char* argv[]) {
     // new address, and restart the state machine (State::Init).
   } else {
     Radio::SetNodeAddress(new_node_address);
-    static PROGMEM const char* const kFmt{
-        "Successfully set node address %02" PRIx8 ".\n"};
-    printf_P(kFmt, new_node_address);
+    printf_P("Successfully set node address %02" PRIx8 ".\n", new_node_address);
     // TODO: Restart the state machine (State::Init).
   }
 #endif  // ANDRUIO_CONFIG_NODE

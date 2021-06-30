@@ -6,11 +6,15 @@
 #include "timer.h"
 
 // Internal task struct
-struct ScheduledTask final : public Task::Handle {
+struct ScheduledTask final : public TaskInterface {
   ScheduledTask() = default;
   ScheduledTask(const Task&) = delete;
   ScheduledTask(Task&& t)
       : until{t.start_}, name{t.name_}, runner{t.runner_}, period{t.period_} {}
+  
+  void pause() override { until = Task::kPause; }
+  void start() override { until = Timer::Millis(); }
+  void set_period(uint16_t period_ms) override { period = period_ms; }
 
   uint64_t until{};
   const char* name{};
@@ -93,21 +97,6 @@ void Run() {
     }
     spin_us = Timer::Micros() + kSpinTimeoutUs;
   }
-}
-
-void PauseTask(TaskHandle handle) {
-  auto& task{*reinterpret_cast<ScheduledTask*>(handle)};
-  task.until = Task::kPause;
-}
-
-void RestartTask(TaskHandle handle) {
-  auto& task{*reinterpret_cast<ScheduledTask*>(handle)};
-  task.until = Timer::Millis();
-}
-
-void SetTaskPeriod(TaskHandle handle, uint16_t period_ms) {
-  auto& task{*reinterpret_cast<ScheduledTask*>(handle)};
-  task.period = period_ms;
 }
 
 }  // namespace Scheduler

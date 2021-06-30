@@ -149,7 +149,7 @@ bool poll_input() {
     AtomicLock lock{};
     if (!get_char(c)) {
       // No input was received.
-      Scheduler::PauseTask(task_);
+      task_->pause();
       return false;
     }
   }
@@ -466,8 +466,8 @@ void Init() {
 
 void SetGetChar(GetCharFunc func) { get_char_func_ = func; }
 
-void Notify() { 
-  Scheduler::RestartTask(task_);
+void Notify() {
+  task_->start();
 }
 
 }  // namespace Console

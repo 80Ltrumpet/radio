@@ -12,7 +12,7 @@ Gpio Led::gpio_ {
 #endif
 };
 
-void Led::Init() {
-  Off();
+void Led::Init(bool start_on) {
+  start_on ? On() : Off();
   gpio_.out();
 }

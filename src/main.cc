@@ -14,7 +14,7 @@
 int main() {
   Power::Init();
 
-  Led::Init();
+  Led::Init(true);
   Spi::Init();
   Timer::Init();
   Usart::Init();

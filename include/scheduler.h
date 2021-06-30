@@ -2,6 +2,13 @@
 
 #include <stdint.h>
 
+struct TaskInterface {
+  virtual void pause() = 0;
+  virtual void start() = 0;
+  virtual void set_period(uint16_t period_ms) = 0;
+};
+using TaskHandle = TaskInterface*;
+
 class Task final {
   friend class ScheduledTask;
   using Runner = void (*)();
@@ -9,8 +16,6 @@ class Task final {
  public:
   static constexpr uint64_t kPause{};
   static constexpr uint64_t kStart{1};
-
-  struct Handle {};
 
   Task(const Task&) = delete;
   Task(const char* name, Runner runner, uint16_t period_ms = 0,
@@ -27,8 +32,6 @@ class Task final {
   uint16_t period_;
 };
 
-using TaskHandle = Task::Handle*;
-
 namespace Scheduler {
 
 // Registers a task's parameters with the scheduler.
@@ -40,9 +43,5 @@ int8_t GetProvisioning();
 
 // Runs the schedule of registered tasks.
 void Run();
-
-void PauseTask(TaskHandle handle);
-void RestartTask(TaskHandle handle);
-void SetTaskPeriod(TaskHandle handle, uint16_t period_ms);
 
 }  // namespace Scheduler

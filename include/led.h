@@ -4,7 +4,7 @@
 
 class Led final {
  public:
-  static void Init();
+  static void Init(bool start_on = false);
   static inline void On() { gpio_.set(); }
   static inline void Off() { gpio_.clear(); }
   static inline void Toggle() { gpio_.toggle(); }
