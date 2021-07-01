@@ -8,6 +8,7 @@
 #include "scheduler.h"
 #include "spi.h"
 #include "timer.h"
+#include "twi.h"
 #include "usart.h"
 #include "usb.h"
 
@@ -16,6 +17,7 @@ int main() {
 
   Led::Init(true);
   Spi::Init();
+  Twi::Init();
   Timer::Init();
   Usart::Init();
   Usb::Init();

@@ -22,4 +22,4 @@ install: $(CONFIG).hex
 								 Start-Sleep 1; \
 							 }"
 	$(AVR_TOOLS)/bin/avrdude -C$(AVR_TOOLS)/etc/avrdude.conf -v \
-		-p$(MMCU) -cavr109 -PCOM5 -b56700 -D -Uflash:w:$(CONFIG).hex:i
+		-p$(MMCU) -cavr109 -P$(BOOT_COM) -b56700 -D -Uflash:w:$(CONFIG).hex:i

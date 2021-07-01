@@ -37,7 +37,7 @@ void Init() {
 #define DISABLE 1
 #define ENABLE 0
   PRR0 = 0
-#if defined(__AVR_HAVE_PRR0_PRTWI) && DISABLE
+#if defined(__AVR_HAVE_PRR0_PRTWI) && !defined(ARDUINO_AVR_FEATHER32U4)
          | _BV(PRTWI)
 #endif
 #if defined(__AVR_HAVE_PRR0_PRTIM2) && DISABLE
