@@ -1,0 +1,39 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Root Console",
+      "type": "shell",
+      "command": "putty",
+      "args": ["-serial", "COM3"],
+      "presentation": {
+        "reveal": "never",
+        "group": "putty",
+        "close": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Node Console",
+      "type": "shell",
+      "command": "putty",
+      "args": ["-serial", "${input:port}"],
+      "presentation": {
+        "reveal": "never",
+        "group": "putty",
+        "close": true
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "port",
+      "type": "promptString",
+      "description": "Serial port to which to connect",
+      "default": "COM7"
+    }
+  ]
+}
