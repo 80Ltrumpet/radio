@@ -56,12 +56,11 @@ int8_t GetProvisioning() {
 void Run() {
   // If no tasks are run for at least 5 milliseconds, go to sleep.
   constexpr uint64_t kSpinTimeoutUs{5000};
-  const auto kTaskCount{get_task_count()};
   auto spin_us{Timer::Micros() + kSpinTimeoutUs};
   for (;;) {
     bool spinning{true};
     auto next_until{Task::kPause};
-    for (uint8_t i{}; i < kTaskCount; ++i) {
+    for (uint8_t i{}; i < get_task_count(); ++i) {
       auto& task{tasks_[i]};
       // Skip tasks that are undefined, paused, or need to wait.
       if (!task.runner || task.until == Task::kPause) continue;
