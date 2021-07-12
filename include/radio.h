@@ -10,7 +10,7 @@ constexpr uint8_t kInvalidAddr{0xff};
 constexpr uint8_t kBroadcastAddr{RADIO_BROADCAST_ADDR};
 
 struct Packet final {
-  const uint8_t length;  // Includes this byte (total packet length).
+  const uint8_t length;  // Excludes this byte
   const uint8_t dest;
   const uint8_t src;
   uint8_t payload[0];
@@ -19,16 +19,17 @@ static_assert(sizeof(Packet) == 3, "Radio::Packet has wrong size.");
 
 // These handlers are called from interrupt context.
 class EventHandler final {
-  using Callback = void (*)();
+  using ReadyCb = void (*)(int8_t);
+  using SentCb = void (*)();
 
  public:
   EventHandler() = default;
   EventHandler(const EventHandler&) = delete;
-  EventHandler(Callback payload_ready, Callback packet_sent)
+  EventHandler(ReadyCb payload_ready, SentCb packet_sent)
       : on_payload_ready_{payload_ready}, on_packet_sent_{packet_sent} {}
 
-  inline void on_payload_ready() {
-    if (on_payload_ready_) on_payload_ready_();
+  inline void on_payload_ready(int8_t rssi) {
+    if (on_payload_ready_) on_payload_ready_(rssi);
   }
 
   inline void on_packet_sent() {
@@ -36,8 +37,8 @@ class EventHandler final {
   }
 
  private:
-  Callback on_payload_ready_{};
-  Callback on_packet_sent_{};
+  ReadyCb on_payload_ready_{};
+  SentCb on_packet_sent_{};
 };
 
 void Init();
@@ -47,7 +48,7 @@ void SetNodeAddress(uint8_t addr);
 
 void SetEventHandler(EventHandler&& handler);
 
-void Listen();
+void Listen(bool use_rx = false);
 
 void HandlePacket(void (*handler)(const Packet&));
 bool SendPacket(uint8_t dest, const void* data, uint8_t length);

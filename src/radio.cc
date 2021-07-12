@@ -20,8 +20,6 @@ using namespace rfm69hcw;
 
 namespace {
 
-constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
-
 // The slave select and reset pins are board-specific.
 #if defined(ARDUINO_AVR_MEGA2560)
 Gpio ss_{PINL, 0};
@@ -77,6 +75,8 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
  * Radio stuff
  */
 
+constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
+
 uint8_t node_addr_{Radio::kInvalidAddr};
 Radio::EventHandler event_handler_{};
 
@@ -124,6 +124,9 @@ void configure() {
       0x00,  // FrfLsb
   };
   write(Reg::DataModul, buffer, kBufLen);
+
+  // Enable PA1 with +13dBm.
+  write(Reg::PaLevel, Pa1On | OutputPower);
 
   // Set the channel filter bandwidth to 400 kHz with a 500 Hz DCC cutoff.
   buffer[0] = buffer[1] = (7 << DccFreq_) | RxBwMant20;
@@ -241,17 +244,25 @@ void SetNodeAddress(uint8_t addr) {
   write(Reg::NodeAdrs, node_addr_);
 }
 
-void Listen() {
-  // Minor optimization (set_listen also checks this).
-  if (op_mode_ & Bits::ListenOn) return;
+void Listen(bool use_rx) {
+  // DEBUG (kinda)
+  if (use_rx) {
+    if ((op_mode_ & Bits::Mode) == Bits::ModeRx) return;
+    set_op_mode(Bits::ModeRx);
+  } else {
+    // Minor optimization (set_listen also checks this).
+    if (op_mode_ & Bits::ListenOn) return;
 
-  // Listen mode can only be enabled while in standby (idle).
-  set_op_mode(Bits::ModeStdby);
+    // Listen mode can only be enabled while in standby (idle).
+    set_op_mode(Bits::ModeStdby);
+  }
 
   // Switch the interrupt source to PayloadReady.
   write(Reg::DioMapping1, 1 << Bits::Dio0Mapping_);
 
-  set_listen(true);
+  if (!use_rx) {
+    set_listen(true);
+  }
 }
 
 void HandlePacket(void (*handler)(const Packet&)) {
@@ -313,8 +324,9 @@ ISR(INT6_vect) {
 #endif
   auto irq2{read(Reg::IrqFlags2)};
   if (irq2 & Bits::PayloadReady) {
+    auto rssi{-static_cast<int8_t>(read(Reg::RssiValue) >> 1)};
     set_op_mode(Bits::ModeStdby);
-    event_handler_.on_payload_ready();
+    event_handler_.on_payload_ready(rssi);
   }
 
   if (irq2 & Bits::PacketSent) {

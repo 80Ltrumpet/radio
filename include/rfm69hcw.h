@@ -71,8 +71,8 @@ constexpr uint8_t TestDagc{0x6f};
 constexpr uint8_t TestAfc{0x71};
 
 // Multi-byte register lengths
-static constexpr uint8_t kSyncValueLength{8};
-static constexpr uint8_t kAesKeyLength{16};
+constexpr uint8_t kSyncValueLength{8};
+constexpr uint8_t kAesKeyLength{16};
 
 // Register reset values (if non-zero) from Section 6.1, Table 23 of the data
 // sheet
