@@ -48,7 +48,7 @@ void SetNodeAddress(uint8_t addr);
 
 void SetEventHandler(EventHandler&& handler);
 
-void Listen(bool use_rx = false);
+void Listen(bool high_power = false);
 
 void HandlePacket(void (*handler)(const Packet&));
 bool SendPacket(uint8_t dest, const void* data, uint8_t length);

@@ -125,7 +125,7 @@ void configure() {
   };
   write(Reg::DataModul, buffer, kBufLen);
 
-  // Enable PA1 with +13dBm.
+  // Enable PA1 with +13dBm (required for reliable operation).
   write(Reg::PaLevel, Pa1On | OutputPower);
 
   // Set the channel filter bandwidth to 400 kHz with a 500 Hz DCC cutoff.
@@ -244,15 +244,15 @@ void SetNodeAddress(uint8_t addr) {
   write(Reg::NodeAdrs, node_addr_);
 }
 
-void Listen(bool use_rx) {
-  // DEBUG (kinda)
-  if (use_rx) {
+// If high_power is true, use Rx mode instead of the internal Rx/Idle duty
+// cycle (see configure()).
+void Listen(bool high_power) {
+  if (high_power) {
     if ((op_mode_ & Bits::Mode) == Bits::ModeRx) return;
     set_op_mode(Bits::ModeRx);
   } else {
-    // Minor optimization (set_listen also checks this).
+    // Minor optimization (set_listen() also checks this).
     if (op_mode_ & Bits::ListenOn) return;
-
     // Listen mode can only be enabled while in standby (idle).
     set_op_mode(Bits::ModeStdby);
   }
@@ -260,7 +260,7 @@ void Listen(bool use_rx) {
   // Switch the interrupt source to PayloadReady.
   write(Reg::DioMapping1, 1 << Bits::Dio0Mapping_);
 
-  if (!use_rx) {
+  if (!high_power) {
     set_listen(true);
   }
 }
