@@ -35,8 +35,8 @@ enum Sla : uint8_t {
 namespace {
 
 struct {
+  size_t length{};
   uint8_t* buffer{};
-  uint8_t length{};
   uint8_t addr{};
   uint8_t sla{};
   Sla type{};
@@ -136,7 +136,7 @@ void execute_transaction() {
 
 }  // namespace
 
-void Twi::Device::read(uint8_t addr, void* buffer, uint8_t length) const {
+void Twi::Device::read(uint8_t addr, void* buffer, size_t length) const {
   transaction_.buffer = reinterpret_cast<uint8_t*>(buffer);
   transaction_.length = length;
   transaction_.addr = addr;
@@ -146,7 +146,7 @@ void Twi::Device::read(uint8_t addr, void* buffer, uint8_t length) const {
 }
 
 void Twi::Device::write(uint8_t addr, const void* buffer,
-                        uint8_t length) const {
+                        size_t length) const {
   transaction_.buffer = reinterpret_cast<uint8_t*>(const_cast<void*>(buffer));
   transaction_.length = length;
   transaction_.addr = addr;
@@ -177,6 +177,14 @@ struct TwiCommand final {
   static void PrintUsage();
 
  private:
+  struct Addresses {
+    uint8_t dev;
+    uint8_t sub;
+    bool valid{false};
+  };
+
+  static Addresses GetAddresses(const char* argv[]);
+
   static const bool registered;
 };
 
@@ -195,27 +203,39 @@ void TwiCommand::CommandHandler(int argc, const char* argv[]) {
   }
 }
 
+// Common input parsing logic
+TwiCommand::Addresses TwiCommand::GetAddresses(const char* argv[]) {
+  Addresses addr;
+  char* endptr{};
+  auto dev_addr{strtol(argv[0], &endptr, 16)};
+  if (*endptr != '\0' || dev_addr < 0 || dev_addr > 0x7f) {
+    printf("Invalid device address \"%s\".\n", argv[0]);
+    return addr;
+  }
+  addr.dev = dev_addr;
+
+  endptr = nullptr;
+  auto sub_addr{strtol(argv[1], &endptr, 16)};
+  if (*endptr != '\0' || sub_addr < 0 || sub_addr > 0xff) {
+    printf("Invalid sub address \"%s\".\n", argv[1]);
+    return addr;
+  }
+  addr.sub = sub_addr;
+  addr.valid = true;
+
+  return addr;
+}
+
 void TwiCommand::Read(int argc, const char* argv[]) {
   if (argc < 3) {
     PrintUsage();
     return;
   }
 
+  auto addr{GetAddresses(argv)};
+  if (!addr.valid) return;
+
   char* endptr{};
-  auto dev_addr{strtol(argv[0], &endptr, 16)};
-  if (*endptr != '\0' || dev_addr < 0 || dev_addr > 0x7f) {
-    printf("Invalid device address \"%s\".\n", argv[0]);
-    return;
-  }
-
-  endptr = nullptr;
-  auto sub_addr{strtol(argv[1], &endptr, 16)};
-  if (*endptr != '\0' || sub_addr < 0 || sub_addr > 0xff) {
-    printf("Invalid sub address \"%s\".\n", argv[1]);
-    return;
-  }
-
-  endptr = nullptr;
   auto length{strtol(argv[2], &endptr, 10)};
   if (*endptr != '\0' || length <= 0 || length > 0xff) {
     printf("Invalid length \"%s\".\n", argv[2]);
@@ -223,8 +243,8 @@ void TwiCommand::Read(int argc, const char* argv[]) {
   }
 
   auto buffer{reinterpret_cast<uint8_t*>(alloca(length))};
-  Twi::Device dev{dev_addr};
-  dev.read(sub_addr, buffer, length);
+  Twi::Device dev{addr.dev};
+  dev.read(addr.sub, buffer, length);
   long i{};
   for (; i < length; ++i) {
     printf(" %02" PRIx8, buffer[i]);
@@ -239,25 +259,14 @@ void TwiCommand::Write(int argc, const char* argv[]) {
     return;
   }
 
-  char* endptr{};
-  auto dev_addr{strtol(argv[0], &endptr, 16)};
-  if (*endptr != '\0' || dev_addr < 0 || dev_addr > 0x7f) {
-    printf("Invalid device address \"%s\".\n", argv[0]);
-    return;
-  }
-
-  endptr = nullptr;
-  auto sub_addr{strtol(argv[1], &endptr, 16)};
-  if (*endptr != '\0' || sub_addr < 0 || sub_addr > 0xff) {
-    printf("Invalid sub address \"%s\".\n", argv[1]);
-    return;
-  }
+  auto addr{GetAddresses(argv)};
+  if (!addr.valid) return;
 
   argc -= 2;
   argv += 2;
   auto buffer{reinterpret_cast<uint8_t*>(alloca(argc))};
   for (int i{}; i < argc; ++i) {
-    endptr = nullptr;
+    char* endptr{};
     auto& byte{buffer[i]};
     byte = strtol(argv[i], &endptr, 16);
     if (*endptr != '\0' || byte < 0 || byte > 0xff) {
@@ -266,8 +275,8 @@ void TwiCommand::Write(int argc, const char* argv[]) {
     }
   }
 
-  Twi::Device dev{dev_addr};
-  dev.write(sub_addr, buffer, argc);
+  Twi::Device dev{addr.dev};
+  dev.write(addr.sub, buffer, argc);
 }
 
 void TwiCommand::PrintUsage() {
