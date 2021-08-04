@@ -78,7 +78,7 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
 constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
 
 uint8_t node_addr_{Radio::kInvalidAddr};
-Radio::EventHandler event_handler_{};
+Radio::PayloadReadyCallback on_payload_ready_{};
 
 // Shadow register to optimize read-modify-write operations
 uint8_t op_mode_{Reg::Reset::OpMode};
@@ -232,8 +232,8 @@ void Init() {
   configure();
 }
 
-void SetEventHandler(EventHandler&& handler) {
-  event_handler_ = static_cast<EventHandler&&>(handler);
+void SetPayloadReadyCallback(PayloadReadyCallback cb) {
+  on_payload_ready_ = cb;
 }
 
 uint8_t GetNodeAddress() { return node_addr_; }
@@ -265,7 +265,7 @@ void Listen(bool high_power) {
   }
 }
 
-void HandlePacket(void (*handler)(const Packet&)) {
+void HandlePacket(void (*handler)(const void*, const Header&)) {
   // NOTE: Packets greater than the length of the FIFO are not allowed.
   static uint8_t buffer[kFifoSize]{};
 
@@ -282,12 +282,13 @@ void HandlePacket(void (*handler)(const Packet&)) {
   }
 
   // Handle the packet.
-  handler(*reinterpret_cast<const Packet*>(buffer));
+  handler(reinterpret_cast<const void*>(buffer + sizeof(Header)),
+          *reinterpret_cast<const Header*>(buffer));
 }
 
 bool SendPacket(uint8_t dest, const void* data, uint8_t length) {
   // Can't send a packet that is longer than the FIFO.
-  const auto total_length{length + sizeof(Packet)};
+  const auto total_length{length + sizeof(Header)};
   if (total_length > kFifoSize) return false;
 
   // NOTE: This assumes that only one task is responsible for sending packets.
@@ -326,11 +327,11 @@ ISR(INT6_vect) {
   if (irq2 & Bits::PayloadReady) {
     auto rssi{-static_cast<int8_t>(read(Reg::RssiValue) >> 1)};
     set_op_mode(Bits::ModeStdby);
-    event_handler_.on_payload_ready(rssi);
+    if (on_payload_ready_) on_payload_ready_(rssi);
   }
 
   if (irq2 & Bits::PacketSent) {
+    // Exit Tx mode as quickly as possible to minimize power draw.
     set_op_mode(Bits::ModeStdby);
-    event_handler_.on_packet_sent();
   }
 }

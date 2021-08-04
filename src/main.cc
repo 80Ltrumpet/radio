@@ -26,7 +26,6 @@ int main() {
 
   Console::Init();
   Radio::Init();
-  Network::Init();
 
   Scheduler::Run();
 }
