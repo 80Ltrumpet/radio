@@ -49,7 +49,7 @@ void Disable() {
   dev_.write(Reg::CTRL1_XL, ODR_XL_OFF | FS_XL_4G);
 }
 
-void ProcessFifoData(void (*handler)(const FifoDatum&)) {
+void ProcessFifoData(void (*handler)(const FifoData&)) {
   // Keep going as long as there's something in the FIFO.
   uint16_t status;
   dev_.read(Reg::FIFO_STATUS1, &status, sizeof(status));
@@ -57,14 +57,14 @@ void ProcessFifoData(void (*handler)(const FifoDatum&)) {
   if (diff == 0) return;
 
   // Perform this allocation only once.
-  const auto alloc_length{diff * sizeof(FifoDatum)};
-  auto data{reinterpret_cast<FifoDatum*>(alloca(alloc_length))};
+  const auto alloc_length{diff * sizeof(FifoData)};
+  auto data{reinterpret_cast<FifoData*>(alloca(alloc_length))};
   do {
-    auto length{diff * sizeof(FifoDatum)};
+    auto length{diff * sizeof(FifoData)};
     // This is very unlikely, but let's be safe.
     if (length > alloc_length) {
       length = alloc_length;
-      diff = length / sizeof(FifoDatum);
+      diff = length / sizeof(FifoData);
     }
     dev_.read(Reg::FIFO_DATA_OUT_TAG, data, length);
     for (uint8_t i{}; i < diff; ++i) handler(data[i]);

@@ -1,5 +1,3 @@
-#ifndef ANDRUIO_CONFIG_ROOT
-
 #include <stdio.h>
 #include <string.h>
 
@@ -12,7 +10,7 @@ namespace {
 
 constexpr uint8_t kPollCountLimit{10};
 constexpr uint16_t kPollTimeoutMs{5000};
-constexpr int32_t kResolution{12207};
+constexpr float kResolution{8192.0f};
 
 TaskHandle task_{};
 bool configured_{false};
@@ -20,20 +18,11 @@ bool enabled_{false};
 uint8_t poll_count_{};
 uint64_t poll_timeout_ms_{};
 
-void poll(const lsm6dsox::FifoDatum& datum) {
+void poll(const lsm6dsox::FifoData& data) {
   ++poll_count_;
-#if 0  // DEBUG
-  int32_t x{datum.x() * kResolution};
-  int32_t y{datum.y() * kResolution};
-  int32_t z{datum.z() * kResolution};
-  printf("\r%02" PRIx8 " (%" PRId32 ".%08" PRId32 ", %" PRId32 ".%08" PRId32
-         ", %" PRId32 ".%08" PRId32 ")\n",
-         datum.tag, x / 100000000, +x % 100000000, y / 100000000,
-         +y % 100000000, z / 100000000, +z % 100000000);
-#else
-  printf("\r%02x (%02x%02x, %02x%02x, %02x%02x)\n", datum.tag, datum.xh,
-         datum.xl, datum.yh, datum.yl, datum.zh, datum.zl);
-#endif
+  const auto& sample{data.get_sample()};
+  printf("\r%02x (%.8f, %.8f, %.8f)\n", data.tag.value, sample.x / kResolution,
+         sample.y / kResolution, sample.z / kResolution);
 }
 
 void run() {
@@ -94,5 +83,3 @@ void ImuTestCommand::CommandHandler(int argc, const char* argv[]) {
 const char* const ImuTestCommand::kCommandName{"imu"};
 const bool ImuTestCommand::registered{
     CommandRegistry::RegisterCommand<ImuTestCommand>()};
-
-#endif

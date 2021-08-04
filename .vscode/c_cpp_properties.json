@@ -27,7 +27,6 @@
         "USB_MANUFACTURER=\"Adafruit\"",
         "USB_PRODUCT=\"Feather 32u4\"",
         "USB_SERIAL_NUMBER=\"\"",
-        "ANDRUIO_CONFIG_NODE",
         "${commonDefines}"
       ],
       "includePath": [
@@ -48,7 +47,6 @@
         "F_CPU=16000000UL",
         "ARDUINO_AVR_MEGA2560",
         "BAUD=9600",
-        "ANDRUIO_CONFIG_ROOT",
         "${commonDefines}"
       ],
       "includePath": [

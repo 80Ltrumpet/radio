@@ -2,7 +2,6 @@
 
 #include "console.h"
 #include "led.h"
-#include "network.h"
 #include "power.h"
 #include "radio.h"
 #include "scheduler.h"

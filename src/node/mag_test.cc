@@ -1,5 +1,3 @@
-#ifndef ANDRUIO_CONFIG_ROOT
-
 #include <stdio.h>
 #include <string.h>
 
@@ -87,5 +85,3 @@ void MagTestCommand::CommandHandler(int argc, const char* argv[]) {
 const char* const MagTestCommand::kCommandName{"mag"};
 const bool MagTestCommand::registered{
     CommandRegistry::RegisterCommand<MagTestCommand>()};
-
-#endif

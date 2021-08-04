@@ -23,7 +23,7 @@ else ifneq ($(CONFIG),)
 $(error Invalid CONFIG)
 endif
 
-SOURCES := $(subst /,\,$(wildcard src/*.cc))
+SOURCES := $(subst /,\,$(wildcard src/*.cc)) $(SOURCES)
 OBJECTS := $(SOURCES:.cc=.o)
 
 # Pre-compute static provisioning for tasks and commands.
