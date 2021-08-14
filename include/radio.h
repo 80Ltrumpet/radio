@@ -23,8 +23,8 @@ using PayloadReadyCallback = void (*)(int8_t);
 
 void Init();
 
-uint8_t GetNodeAddress();
-void SetNodeAddress(uint8_t addr);
+uint8_t GetAddress();
+void SetAddress(uint8_t addr);
 
 void SetPayloadReadyCallback(PayloadReadyCallback cb);
 

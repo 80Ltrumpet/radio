@@ -77,7 +77,7 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
 
 constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
 
-uint8_t node_addr_{Radio::kInvalidAddr};
+uint8_t address_{Radio::kInvalidAddr};
 Radio::PayloadReadyCallback on_payload_ready_{};
 
 // Shadow register to optimize read-modify-write operations
@@ -137,12 +137,12 @@ void configure() {
   write(Reg::PacketConfig1, PacketFormatVariable | DcFreeWhitening | CrcOn |
                                 AddressFilteringBroadcast);
 
-  // Read the node address programmed into the EEPROM.
-  Eeprom::Read(Eeprom::Addr::NodeAddress, &node_addr_, sizeof(node_addr_));
+  // Read the radio address programmed into the EEPROM.
+  Eeprom::Data::Read(Eeprom::Data::RadioAddress, &address_);
   // If the node address is the same as the broadcast address, mark it invalid.
-  if (node_addr_ == Radio::kBroadcastAddr) node_addr_ = Radio::kInvalidAddr;
+  if (address_ == Radio::kBroadcastAddr) address_ = Radio::kInvalidAddr;
   // Set the node and broadcast addresses.
-  buffer[0] = node_addr_;
+  buffer[0] = address_;
   buffer[1] = Radio::kBroadcastAddr;
   write(Reg::NodeAdrs, buffer, 2);
 
@@ -236,12 +236,12 @@ void SetPayloadReadyCallback(PayloadReadyCallback cb) {
   on_payload_ready_ = cb;
 }
 
-uint8_t GetNodeAddress() { return node_addr_; }
+uint8_t GetAddress() { return address_; }
 
-void SetNodeAddress(uint8_t addr) {
-  Eeprom::Update(Eeprom::Addr::NodeAddress, &addr, 1);
-  node_addr_ = addr;
-  write(Reg::NodeAdrs, node_addr_);
+void SetAddress(uint8_t addr) {
+  Eeprom::Data::Update(Eeprom::Data::RadioAddress, &addr);
+  address_ = addr;
+  write(Reg::NodeAdrs, address_);
 }
 
 // If high_power is true, use Rx mode instead of the internal Rx/Idle duty
@@ -305,7 +305,7 @@ bool SendPacket(uint8_t dest, const void* data, uint8_t length) {
     // The length byte is not included in the total.
     spi.write(total_length - 1);
     spi.write(dest);
-    spi.write(GetNodeAddress());
+    spi.write(GetAddress());
     spi.write(data, length);
   }
 
