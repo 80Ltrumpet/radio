@@ -1,4 +1,3 @@
 .vscode/*.log
 *.elf
 *.hex
-tools/munging.json
