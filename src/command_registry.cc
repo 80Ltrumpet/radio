@@ -50,7 +50,10 @@ CommandRegistryImpl& impl() {
 namespace CommandRegistry {
 
 uint8_t Size() {
-  return impl().count < kMaxCommands ? impl().count : kMaxCommands;
+  if (auto count{impl().count}; count < kMaxCommands) {
+    return count;
+  }
+  return kMaxCommands;
 }
 
 const Entry& Get(uint8_t i) { return impl().entries[i]; }
