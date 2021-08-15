@@ -138,7 +138,7 @@ void configure() {
                                 AddressFilteringBroadcast);
 
   // Read the radio address programmed into the EEPROM.
-  Eeprom::Data::Read(Eeprom::Data::RadioAddress, &address_);
+  Eeprom::Read(Eeprom::Data::RadioAddress, &address_);
   // If the node address is the same as the broadcast address, mark it invalid.
   if (address_ == Radio::kBroadcastAddr) address_ = Radio::kInvalidAddr;
   // Set the node and broadcast addresses.
@@ -239,7 +239,7 @@ void SetPayloadReadyCallback(PayloadReadyCallback cb) {
 uint8_t GetAddress() { return address_; }
 
 void SetAddress(uint8_t addr) {
-  Eeprom::Data::Update(Eeprom::Data::RadioAddress, &addr);
+  Eeprom::Update(Eeprom::Data::RadioAddress, &addr);
   address_ = addr;
   write(Reg::NodeAdrs, address_);
 }
