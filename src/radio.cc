@@ -36,6 +36,7 @@ Gpio int_{PINE, 6};
 /*------------------------------------------------------------------------------
  * SPI
  */
+
 void ss_select(bool select) {
   // SS is asserted low and has an external pull-up.
   if (select) {
@@ -78,10 +79,15 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
 constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
 
 uint8_t address_{Radio::kInvalidAddr};
-Radio::PayloadReadyCallback on_payload_ready_{};
+Radio::Client client_{};
 
 // Shadow register to optimize read-modify-write operations
 uint8_t op_mode_{Reg::Reset::OpMode};
+
+// Reads the RSSI in dBm.
+int8_t read_rssi() {
+  return -static_cast<int8_t>(read(Reg::RssiValue) >> 1);
+}
 
 // Sets recommended defaults according to the data sheet.
 void set_defaults() {
@@ -232,16 +238,16 @@ void Init() {
   configure();
 }
 
-void SetPayloadReadyCallback(PayloadReadyCallback cb) {
-  on_payload_ready_ = cb;
-}
-
 uint8_t GetAddress() { return address_; }
 
 void SetAddress(uint8_t addr) {
   Eeprom::Update(Eeprom::Data::RadioAddress, &addr);
   address_ = addr;
   write(Reg::NodeAdrs, address_);
+}
+
+void SetClient(Client&& client) {
+  client_ = static_cast<Client&&>(client);
 }
 
 // If high_power is true, use Rx mode instead of the internal Rx/Idle duty
@@ -265,28 +271,23 @@ void Listen(bool high_power) {
   }
 }
 
-void HandlePacket(void (*handler)(const void*, const Header&)) {
-  // NOTE: Packets greater than the length of the FIFO are not allowed.
-  static uint8_t buffer[kFifoSize]{};
-
-  if (!(read(Reg::IrqFlags2) & Bits::FifoNotEmpty)) return;
-
-  {
-    // Small optimization to perform the entire read in a single transaction.
-    Spi::Transaction spi{spi_};
-    spi.write(Reg::Fifo | Spi::kAddrRead);
-    // Read the packet length.
-    spi.read(buffer, 1);
-    // Read the message.
-    spi.read(buffer + 1, buffer[0]);
+bool Receive(IFifoBuffer* buffer) {
+  if (!(read(Reg::IrqFlags2) & Bits::FifoNotEmpty)) {
+    return false;
   }
 
-  // Handle the packet.
-  handler(reinterpret_cast<const void*>(buffer + sizeof(Header)),
-          *reinterpret_cast<const Header*>(buffer));
+  // Small optimization to perform the entire read in a single transaction.
+  Spi::Transaction spi{spi_};
+  spi.write(Reg::Fifo | Spi::kAddrRead);
+  // Read the packet length.
+  spi.read(buffer->get(), 1);
+  // Read the message.
+  spi.read(buffer->bytes() + 1, *buffer->cbytes());
+
+  return true;
 }
 
-bool SendPacket(uint8_t dest, const void* data, uint8_t length) {
+bool Send(uint8_t dest, const void* data, uint8_t length) {
   // Can't send a packet that is longer than the FIFO.
   const auto total_length{length + sizeof(Header)};
   if (total_length > kFifoSize) return false;
@@ -325,13 +326,14 @@ ISR(INT6_vect) {
 #endif
   auto irq2{read(Reg::IrqFlags2)};
   if (irq2 & Bits::PayloadReady) {
-    auto rssi{-static_cast<int8_t>(read(Reg::RssiValue) >> 1)};
+    auto rssi{read_rssi()};
     set_op_mode(Bits::ModeStdby);
-    if (on_payload_ready_) on_payload_ready_(rssi);
+    if (client_.on_payload_ready) client_.on_payload_ready(rssi);
   }
 
   if (irq2 & Bits::PacketSent) {
     // Exit Tx mode as quickly as possible to minimize power draw.
     set_op_mode(Bits::ModeStdby);
+    if (client_.on_packet_sent) client_.on_packet_sent();
   }
 }
