@@ -9,4 +9,4 @@ DEFINES := -DF_CPU=16000000UL -DARDUINO_AVR_MEGA2560 -DBAUD=9600
 .PHONY: install
 install: $(CONFIG).hex
 	$(AVR_TOOLS)/bin/avrdude -C$(AVR_TOOLS)/etc/avrdude.conf -v \
-		-p$(MMCU) -cwiring -PCOM3 -b115200 -D -Uflash:w:$(CONFIG).hex:i
+		-p$(MMCU) -cwiring -P$(ROOT_PORT) -b115200 -D -Uflash:w:$(CONFIG).hex:i

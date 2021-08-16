@@ -4,19 +4,32 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Root Console",
+      "label": "Build",
       "type": "shell",
-      "command": "putty",
-      "args": ["-serial", "COM3"],
+      "command": "make",
+      "args": ["CONFIG=${input:config}"],
+      "presentation": {
+        "focus": true
+      },
+      "problemMatcher": ["$gcc"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Clean",
+      "type": "shell",
+      "command": "make",
+      "args": ["clean"],
       "presentation": {
         "reveal": "never",
-        "group": "putty",
         "close": true
       },
       "problemMatcher": []
     },
     {
-      "label": "Node Console",
+      "label": "Console",
       "type": "shell",
       "command": "putty",
       "args": ["-serial", "${input:port}"],
@@ -26,14 +39,31 @@
         "close": true
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Flash",
+      "type": "shell",
+      "command": "make",
+      "args": ["CONFIG=${input:config}", "install"],
+      "presentation": {
+        "focus": true
+      },
+      "problemMatcher": []
     }
   ],
   "inputs": [
     {
+      "id": "config",
+      "type": "pickString",
+      "description": "Build configuration",
+      "options": ["node", "root"],
+      "default": "node"
+    },
+    {
       "id": "port",
       "type": "promptString",
-      "description": "Serial port to which to connect",
-      "default": "COM7"
+      "description": "Serial port",
+      "default": "COM?"
     }
   ]
 }

@@ -5,6 +5,8 @@
 
 AVR_TOOLS := "C:/Arduino/hardware/tools/avr"
 
+include build/local.mk
+
 # Configuration makefiles must include the following:
 # - Define MMCU.
 # - Define the "install" target.

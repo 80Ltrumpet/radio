@@ -12,18 +12,15 @@ CPPFLAGS := -fpermissive -Wno-error-narrowing
 # DEBUG
 LDFLAGS := -Wl,-u,vfprintf -lprintf_flt -lm
 
-USER_COM := COM7
-BOOT_COM := COM5
-
 .PHONY: install
 install: $(CONFIG).hex
-	@powershell "$$ports = [System.IO.Ports.SerialPort]::GetPortNames(); \
-	             if (\"$(BOOT_COM)\" -notin $$ports -and \"$(USER_COM)\" -in $$ports) { \
-							   Write-Output \"Forcing reset using 1200bps open/close on port $(USER_COM).\"; \
-							   $$user_com = New-Object System.IO.Ports.SerialPort $(USER_COM),1200,None,8,1; \
-							   $$user_com.Open(); \
-							   $$user_com.Close(); \
+	@powershell '$$ports = [System.IO.Ports.SerialPort]::GetPortNames(); \
+	             if ("$(NODE_BOOT_PORT)" -notin $$ports -and "$(NODE_USER_PORT)" -in $$ports) { \
+							   Write-Output "Forcing reset using 1200bps open/close on port $(NODE_USER_PORT)."; \
+							   $$user_port = New-Object System.IO.Ports.SerialPort $(NODE_USER_PORT),1200,None,8,1; \
+							   $$user_port.Open(); \
+							   $$user_port.Close(); \
 								 Start-Sleep 1; \
-							 }"
+							 }'
 	$(AVR_TOOLS)/bin/avrdude -C$(AVR_TOOLS)/etc/avrdude.conf -v \
-		-p$(MMCU) -cavr109 -P$(BOOT_COM) -b56700 -D -Uflash:w:$(CONFIG).hex:i
+		-p$(MMCU) -cavr109 -P$(NODE_BOOT_PORT) -b56700 -D -Uflash:w:$(CONFIG).hex:i
