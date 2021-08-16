@@ -1,13 +1,5 @@
 #include "usb.h"
 
-#ifndef USB_VID
-
-namespace Usb {
-void Init() {}
-}  // namespace Usb
-
-#else
-
 #include <alloca.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
@@ -595,5 +587,3 @@ ISR(USB_COM_vect) {
     UECONX = _BV(STALLRQ) | _BV(EPEN);
   }
 }
-
-#endif

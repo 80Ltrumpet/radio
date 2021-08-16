@@ -17,9 +17,7 @@ namespace lsm6dsox {
 using namespace Bits;
 
 bool Exists() {
-  uint8_t who_am_i{};
-  dev_.read(Reg::WHO_AM_I, who_am_i);
-  return who_am_i == Reg::Reset::WHO_AM_I;
+  return dev_.read(Reg::WHO_AM_I) == Reg::Reset::WHO_AM_I;
 }
 
 void Configure() {

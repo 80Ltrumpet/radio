@@ -12,8 +12,10 @@ struct Twi final {
     void write(uint8_t addr, const void* buffer, size_t length) const;
 
     // Single-byte utilities
-    inline void read(uint8_t addr, uint8_t& byte) const {
+    uint8_t read(uint8_t addr) const {
+      uint8_t byte;
       read(addr, &byte, 1);
+      return byte;
     }
     inline void write(uint8_t addr, uint8_t byte) const {
       write(addr, &byte, 1);

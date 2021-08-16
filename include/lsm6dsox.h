@@ -3,6 +3,11 @@
 #include <stdint.h>
 
 // TODO: This isn't a great interface...
+/*
+For testing, it would be nice to be able to start a task that periodically
+outputs aggregate data.
+INT2 is connected to INT3 (PD3).
+ */
 namespace lsm6dsox {
 
 struct FifoData final {

@@ -1,13 +1,5 @@
 #include "usart.h"
 
-#ifndef BAUD
-
-namespace Usart {
-void Init() {}
-}  // namespace Usart
-
-#else
-
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <stdio.h>
@@ -118,5 +110,3 @@ ISR(USART0_UDRE_vect) {
     tx_.head = tx_.tail = 0;
   }
 }
-
-#endif

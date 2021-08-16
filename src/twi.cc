@@ -123,11 +123,6 @@ bool twi_state_machine() {
 }
 
 void execute_transaction() {
-  // Validate the transaction.
-  if (!transaction_.buffer || transaction_.length == 0 ||
-      (transaction_.type != kSlaRead && transaction_.type != kSlaWrite))
-    return;
-
   // Kick off the state machine and let it run its course.
   start();
   while (twi_state_machine())

@@ -226,10 +226,10 @@ void Init() {
   int_.in();
   int_.clear();
 #if defined(ARDUINO_AVR_MEGA2560)
-  EICRB = _BV(ISC51) | _BV(ISC50);
+  EICRB |= _BV(ISC51) | _BV(ISC50);
   EIMSK |= _BV(INT5);
 #elif defined(ARDUINO_AVR_FEATHER32U4)
-  EICRB = _BV(ISC61) | _BV(ISC60);
+  EICRB |= _BV(ISC61) | _BV(ISC60);
   EIMSK |= _BV(INT6);
 #endif
 
