@@ -131,9 +131,11 @@ constexpr uint8_t NTH_Z{0x04};
 constexpr uint8_t MROI{0x02};
 constexpr uint8_t INT{0x01};
 
-// OUT_*
-constexpr int16_t OUT_MAX{0x6ae8};
-
 }  // namespace Bits
+
+constexpr int16_t OutLsbPerGauss(Bits::FS_value fs) {
+  // Derived from section 2.1 of ST AN4602 (LIS3MDL Application Note)
+  return 27367 / (((fs >> 5) + 1) << 2) + 1;
+}
 
 }  // namespace lis3mdl

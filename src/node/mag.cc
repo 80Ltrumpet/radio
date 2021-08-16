@@ -5,7 +5,6 @@
 #include <stdio.h>
 
 #include "command_registry.h"
-#include "gpio.h"
 #include "lis3mdl.h"
 #include "scheduler.h"
 #include "twi.h"
@@ -14,16 +13,10 @@ using namespace lis3mdl;
 
 namespace {
 
-constexpr uint8_t fs_to_gauss(uint8_t fs) {
-  return (fs + 1) << 2;
-}
-
-constexpr uint8_t gauss_to_fs(uint8_t gauss) {
-  return (gauss >> 2) - 1;
-}
+constexpr auto kFullScale{Bits::FS_4GAUSS};
+constexpr int16_t kLsbPerGauss{OutLsbPerGauss(kFullScale)};
 
 Twi::Device dev_{kI2cAddr};
-uint8_t full_scale_{fs_to_gauss(Bits::FS_4GAUSS)};
 bool ready_{false};
 bool sampling_{false};
 TaskHandle task_{};
@@ -43,9 +36,9 @@ void run() {
 namespace Mag {
 
 Sample::Sample(const RawSample& raw) {
-  x = static_cast<float>(raw.x) * full_scale_ / Bits::OUT_MAX;
-  y = static_cast<float>(raw.y) * full_scale_ / Bits::OUT_MAX;
-  z = static_cast<float>(raw.z) * full_scale_ / Bits::OUT_MAX;
+  x = static_cast<float>(raw.x) / kLsbPerGauss;
+  y = static_cast<float>(raw.y) / kLsbPerGauss;
+  z = static_cast<float>(raw.z) / kLsbPerGauss;
 }
 
 void Init() {
@@ -55,14 +48,11 @@ void Init() {
   }
 
   // Configure the external interrupt (rising edge).
-  Gpio drdy{PIND, 2};
-  drdy.in();
-  drdy.clear();
   EICRA |= _BV(ISC21) | _BV(ISC20);
   EIMSK |= _BV(INT2);
 
   // Configure low-power operation, sampling at 5 Hz, with block-data update.
-  uint8_t ctrl[]{ Bits::OM_LP | Bits::DO_5HZ, Bits::FS_4GAUSS };
+  uint8_t ctrl[]{ Bits::OM_LP | Bits::DO_5HZ, kFullScale };
   dev_.write(Reg::CTRL1, ctrl, sizeof(ctrl));
   ctrl[0] = Bits::BDU;
   dev_.write(Reg::CTRL5, ctrl[0]);
@@ -72,6 +62,7 @@ void Init() {
 
 }
 
+// TODO: Right now, this command only exists for debugging.
 struct MagCommand final {
   static void CommandHandler(int argc, const char* argv[]);
   static const char* const kCommandName;
