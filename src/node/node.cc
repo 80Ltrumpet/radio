@@ -1,5 +1,6 @@
 #include "platform.h"
 
+#include "imu.h"
 #include "mag.h"
 #include "usb.h"
 
@@ -10,6 +11,7 @@ void InitPreSei() {
 }
 
 void InitPostSei() {
+  Imu::Init();
   Mag::Init();
 }
 

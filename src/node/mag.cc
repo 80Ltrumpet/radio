@@ -8,8 +8,16 @@
 #include "lis3mdl.h"
 #include "scheduler.h"
 #include "twi.h"
+#include "vec3.h"
 
 using namespace lis3mdl;
+
+using RawSample = Vec3<int16_t>;
+
+struct Sample final : public Vec3<float> {
+  Sample() = default;
+  explicit Sample(const RawSample& raw);
+};
 
 namespace {
 
@@ -17,33 +25,32 @@ constexpr auto kFullScale{Bits::FS_4GAUSS};
 constexpr int16_t kLsbPerGauss{OutLsbPerGauss(kFullScale)};
 
 Twi::Device dev_{kI2cAddr};
-bool ready_{false};
+bool exists_{false};
 bool sampling_{false};
 TaskHandle task_{};
 
 void run() {
-  Mag::RawSample raw;
+  RawSample raw;
   do {
     dev_.read(Reg::OUT_X_L, &raw, sizeof(raw));
-    Mag::Sample sample{raw};
+    Sample sample{raw};
     printf("%.4f %.4f %.4f\n", sample.x, sample.y, sample.z);
   } while (dev_.read(Reg::STATUS) & Bits::ZYXDA);
   task_->pause();  // Always started by interrupt
 }
 
+}  // namespace
+
+Sample::Sample(const RawSample& raw) {
+  for (uint8_t i{}; i < 3; ++i)
+    v[i] = static_cast<float>(raw.v[i]) / kLsbPerGauss;
 }
 
 namespace Mag {
 
-Sample::Sample(const RawSample& raw) {
-  x = static_cast<float>(raw.x) / kLsbPerGauss;
-  y = static_cast<float>(raw.y) / kLsbPerGauss;
-  z = static_cast<float>(raw.z) / kLsbPerGauss;
-}
-
 void Init() {
   // Check if the device exists.
-  if (!(ready_ = dev_.read(Reg::WHO_AM_I) == Reg::Reset::WHO_AM_I)) {
+  if (!(exists_ = dev_.read(Reg::WHO_AM_I) == Reg::Reset::WHO_AM_I)) {
     return;
   }
 
@@ -60,7 +67,7 @@ void Init() {
   task_ = Scheduler::AddTask({"mag", run, 0, Task::kPause});
 }
 
-}
+}  // namespace Mag
 
 // TODO: Right now, this command only exists for debugging.
 struct MagCommand final {
@@ -72,8 +79,8 @@ struct MagCommand final {
 };
 
 void MagCommand::CommandHandler(int argc, const char* argv[]) {
-  if (!ready_) {
-    printf("mag is not ready\n");
+  if (!exists_) {
+    printf("There is no magnetometer.\n");
     return;
   }
   if (sampling_) {
