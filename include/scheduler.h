@@ -4,7 +4,7 @@
 
 struct TaskInterface {
   virtual void pause() = 0;
-  virtual void start() = 0;
+  virtual void start(uint16_t delay_ms = 0) = 0;
   virtual void set_period(uint16_t period_ms) = 0;
 };
 using TaskHandle = TaskInterface*;

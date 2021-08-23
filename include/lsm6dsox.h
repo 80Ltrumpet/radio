@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "vec3.h"
+
 namespace lsm6dsox {
 
 constexpr uint8_t kI2cAddr{0x6a};
@@ -624,5 +626,29 @@ constexpr uint8_t TAG_CNT_{1};
 constexpr uint8_t TAG_PARITY{0x01};
 
 }  // namespace Bits
+
+// Encapsulates one packet of FIFO data.
+struct FifoData final {
+  union Tag {
+    struct {
+      const uint8_t parity : 1;
+      const uint8_t counter : 2;
+      const uint8_t sensor : 5;
+    };
+    const uint8_t value;
+  };
+
+  using Data = Vec3<int16_t>;
+
+  const Data& data() const {
+    return *reinterpret_cast<const Data*>(raw);
+  }
+
+  Tag tag;
+  uint8_t raw[sizeof(Data)];
+};
+static_assert(sizeof(FifoData) == 7, "FifoData has incorrect size");
+
+uint16_t ProcessFifo(void (*visitor)(const FifoData&), uint16_t limit = 0);
 
 }  // namespace lsm6dsox

@@ -1,0 +1,342 @@
+#include "imu.h"
+
+#include <avr/interrupt.h>
+#include <avr/io.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "command_registry.h"
+#include "lsm6dsox.h"
+#include "scheduler.h"
+#include "twi.h"
+#include "vec3.h"
+
+using namespace lsm6dsox;
+
+namespace {
+
+constexpr auto kAccelFullScale{Bits::FS_XL_2G};
+constexpr int16_t kLsbPerG{INT16_MAX >> 1};
+
+constexpr auto kGyroFullScale{Bits::FS_125};
+constexpr float kLsbPerDps{INT16_MAX / 125.0f};
+
+constexpr uint8_t kTargetRate{5};
+constexpr uint16_t kMaxCounterBdr{650};
+
+Twi::Device dev_{kI2cAddr};
+TaskHandle task_{};
+
+struct {
+  Vec3<float> vec{};
+  float conversion{1.0f};
+  uint32_t limit{};
+  uint32_t count{};
+  uint8_t sensor{Bits::TAG_SENSOR_ACCEL_NC};
+  uint8_t odr{};
+  uint8_t bdr{};
+  uint8_t fs{};
+  bool ready{};
+  uint8_t n{};
+} config_{};
+
+void process_fifo_data(const FifoData& data) {
+  if (config_.count >= config_.limit) {
+    return;
+  }
+  const auto& raw{data.data()};
+  for (uint8_t i{}; i < 3; ++i) {
+    config_.vec.v[i] += raw.v[i] / config_.conversion;
+  }
+  ++config_.count;
+  ++config_.n;
+  if (config_.n >= 10) {
+    printf("%.6f %.6f %.6f\n", config_.vec.x / config_.n, config_.vec.y / config_.n, config_.vec.z / config_.n);
+    config_.n = 0;
+    config_.vec.x = config_.vec.y = config_.vec.z = 0.0f;
+  }
+}
+
+void run() {
+#if 1
+  if (!config_.ready) {
+    dev_.write(Reg::FIFO_CTRL4, Bits::FIFO_MODE_STOP_ON_FULL);
+    config_.ready = true;
+  }
+  ProcessFifo(process_fifo_data);
+
+  if (config_.count >= config_.limit) {
+    dev_.write(Reg::CTRL1_XL, 0);
+    dev_.write(Reg::CTRL2_G, 0);
+#if 0
+    for (uint8_t i{}; i < 3; ++i) {
+      config_.vec.v[i] /= config_.count;
+    }
+    printf("%.6f %.6f %.6f\n", config_.vec.x, config_.vec.y, config_.vec.z);
+#endif
+  }
+#endif
+#if 0
+  auto src{dev_.read(Reg::WAKE_UP_SRC)};
+  printf("%02x\n", src);
+#endif
+
+  task_->pause();
+}
+
+}  // namespace
+
+namespace Imu {
+
+void Init() {
+  // Check if the device exists.
+  if (dev_.read(Reg::WHO_AM_I) != Reg::Reset::WHO_AM_I) {
+    return;
+  }
+
+  // Configure the external interrupt (rising edge).
+  EICRA |= _BV(ISC31) | _BV(ISC30);
+  EIMSK |= _BV(INT3);
+
+  // Disable I3C.
+  dev_.write(Reg::CTRL9_XL, Reg::Reset::CTRL9_XL | Bits::I3C_DISABLE);
+
+#if 0
+  uint8_t buffer[]{3, Bits::WAKE_THS_W | 1};
+  dev_.write(Reg::WAKE_UP_THS, buffer, sizeof(buffer));
+
+  dev_.write(Reg::TAP_CFG2, Bits::INTERRUPTS_ENABLE);
+  dev_.write(Reg::MD2_CFG, Bits::INT2_SLEEP_CHANGE);
+
+  // Configure ultra-low-power mode.
+  dev_.write(Reg::CTRL5_C, Bits::XL_ULP_EN);
+#endif
+  
+  task_ = Scheduler::AddTask({"imu", run, 0, Task::kPause});
+}
+
+}  // namespace Imu
+
+struct ImuCommand final {
+  static void CommandHandler(int argc, const char* argv[]);
+  static const char* const kCommandName;
+
+ private:
+  static void PrintUsage();
+
+  static const bool registered;
+};
+
+void ImuCommand::CommandHandler(int argc, const char* argv[]) {
+  if (!task_) {
+    printf("There is no IMU.\n");
+    return;
+  }
+
+  if (argc != 6) {
+    PrintUsage();
+    return;
+  }
+
+  if (strcmp(argv[1], "accel") == 0) {
+    config_.sensor = Bits::TAG_SENSOR_ACCEL_NC;
+    config_.ready = true;
+  } else if (strcmp(argv[1], "gyro") == 0) {
+    config_.sensor = Bits::TAG_SENSOR_GYRO_NC;
+    config_.ready = false;
+  } else {
+    printf("Unknown sensor \"%s\".\n", argv[1]);
+    return;
+  }
+
+  char* endptr{};
+  auto fs{strtol(argv[2], &endptr, 10)};
+  if (*endptr != '\0' || fs < 0) {
+    printf("Invalid FS \"%s\".\n", argv[2]);
+    return;
+  }
+
+  if (config_.sensor == Bits::TAG_SENSOR_ACCEL_NC) {
+    switch (fs) {
+      case 2:
+        config_.fs = Bits::FS_XL_2G;
+        break;
+      case 4:
+        config_.fs = Bits::FS_XL_4G;
+        break;
+      case 8:
+        config_.fs = Bits::FS_XL_8G;
+        break;
+      case 16:
+        config_.fs = Bits::FS_XL_16G_2G;
+        break;
+      default:
+        printf("Invalid accel FS \"%s\".\n", argv[2]);
+        return;
+    }
+    config_.conversion = INT16_MAX / fs;
+  } else {
+    switch (fs) {
+      case 125:
+        config_.fs = Bits::FS_125;
+        break;
+      case 250:
+        config_.fs = Bits::FS_G_250DPS;
+        break;
+      case 500:
+        config_.fs = Bits::FS_G_500DPS;
+        break;
+      case 1000:
+        config_.fs = Bits::FS_G_1000DPS;
+        break;
+      case 2000:
+        config_.fs = Bits::FS_G_2000DPS;
+        break;
+      default:
+        printf("Invalid gyro FS \"%s\".\n", argv[2]);
+        return;
+    }
+    config_.conversion = static_cast<float>(INT16_MAX) / fs;
+  }
+
+  endptr = nullptr;
+  float odr{strtod(argv[3], &endptr)};
+  if (*endptr != '\0' || odr <= 0.0f) {
+    printf("Invalid ODR \"%s\".\n", argv[3]);
+    return;
+  }
+
+  if (odr <= 2.0f) {
+    if (config_.sensor != Bits::TAG_SENSOR_ACCEL_NC) {
+      printf("Invalid gyro ODR \"%s\".\n", argv[3]);
+      return;
+    }
+    config_.odr = Bits::ODR_XL_1P6_12P5;
+  } else if (odr <= 12.5f) {
+    config_.odr = Bits::ODR_XL_12P5;
+  } else if (odr <= 26.0f) {
+    config_.odr = Bits::ODR_XL_26;
+  } else if (odr <= 52.0f) {
+    config_.odr = Bits::ODR_XL_52;
+  } else if (odr <= 104.0f) {
+    config_.odr = Bits::ODR_XL_104;
+  } else if (odr <= 208.0f) {
+    config_.odr = Bits::ODR_XL_208;
+  } else if (odr <= 416.0f) {
+    config_.odr = Bits::ODR_XL_416;
+  } else if (odr <= 833.0f) {
+    config_.odr = Bits::ODR_XL_833;
+  } else if (odr <= 1667.0f) {
+    config_.odr = Bits::ODR_XL_1P66K;
+  } else if (odr <= 3333.3f) {
+    config_.odr = Bits::ODR_XL_3P33K;
+  } else {
+    config_.odr = Bits::ODR_XL_6P66K;
+  }
+
+  endptr = nullptr;
+  float bdr{strtod(argv[4], &endptr)};
+  if (*endptr != '\0' || odr <= 0.0f) {
+    printf("Invalid BDR \"%s\".\n", argv[4]);
+    return;
+  }
+
+  if (bdr <= 6.5f) {
+    config_.bdr = Bits::BDR_6P5_G_1P6_XL;
+    bdr = config_.sensor == Bits::TAG_SENSOR_ACCEL_NC ? 1.6f : 6.5f;
+  } else if (bdr <= 12.5f) {
+    config_.bdr = Bits::BDR_12P5;
+    bdr = 12.5f;
+  } else if (bdr <= 26.0f) {
+    config_.bdr = Bits::BDR_26;
+    bdr = 26.0f;
+  } else if (bdr <= 52.0f) {
+    config_.bdr = Bits::BDR_52;
+    bdr = 52.0f;
+  } else if (bdr <= 104.0f) {
+    config_.bdr = Bits::BDR_104;
+    bdr = 104.0f;
+  } else if (bdr <= 208.0f) {
+    config_.bdr = Bits::BDR_208;
+    bdr = 208.0f;
+  } else if (bdr <= 417.0f) {
+    config_.bdr = Bits::BDR_417;
+    bdr = 417.0f;
+  } else if (bdr <= 833.0f) {
+    config_.bdr = Bits::BDR_833;
+    bdr = 833.0f;
+  } else if (bdr <= 1667.0f) {
+    config_.bdr = Bits::BDR_1667;
+    bdr = 1667.0f;
+  } else if (bdr <= 3333.3f) {
+    config_.bdr = Bits::BDR_3333;
+    bdr = 3333.3f;
+  } else {
+    config_.bdr = Bits::BDR_6667;
+    bdr = 6666.6f;
+  }
+  if (config_.sensor == Bits::TAG_SENSOR_GYRO_NC) {
+    config_.bdr <<= Bits::BDR_GY_;
+  }
+
+  endptr = nullptr;
+  auto limit{strtol(argv[5], &endptr, 10)};
+  if (*endptr != '\0' || limit <= 0) {
+    printf("Invalid LIMIT \"%s\".\n", argv[5]);
+    return;
+  }
+  config_.count = 0;
+  config_.limit = limit;
+  config_.n = 0;
+  for (uint8_t i{}; i < 3; ++i) {
+    config_.vec.v[i] = 0.0f;
+  }
+
+  uint16_t counter_bdr{bdr / kTargetRate};
+  if (counter_bdr > kMaxCounterBdr) {
+    counter_bdr = kMaxCounterBdr;
+  }
+
+  dev_.write(Reg::FIFO_CTRL3, config_.bdr);
+  if (config_.sensor == Bits::TAG_SENSOR_ACCEL_NC) {
+    dev_.write(Reg::FIFO_CTRL4, Bits::FIFO_MODE_STOP_ON_FULL);
+  } else {
+    dev_.write(Reg::FIFO_CTRL4, Bits::FIFO_MODE_BYPASS);
+  }
+  uint8_t counter_bdr_reg1{Bits::RST_COUNTER_BDR | (counter_bdr >> 8)};
+  if (config_.sensor == Bits::TAG_SENSOR_GYRO_NC) {
+    counter_bdr_reg1 |= Bits::TRIG_COUNTER_BDR;
+  }
+  dev_.write(Reg::COUNTER_BDR_REG1, counter_bdr_reg1);
+  dev_.write(Reg::COUNTER_BDR_REG2, counter_bdr & 0xff);
+  dev_.write(Reg::INT2_CTRL, Bits::INT2_CNT_BDR);
+  if (odr <= 208.0f) {
+    dev_.write(Reg::CTRL5_C, Bits::XL_ULP_EN);
+    dev_.write(Reg::CTRL6_C, 0);
+  } else {
+    dev_.write(Reg::CTRL5_C, 0);
+    //dev_.write(Reg::CTRL6_C, Bits::XL_HM_MODE);
+  }
+  if (config_.sensor == Bits::TAG_SENSOR_ACCEL_NC) {
+    dev_.write(Reg::CTRL1_XL, config_.odr | config_.fs);
+  } else {
+    dev_.write(Reg::CTRL2_G, config_.odr | config_.fs);
+  }
+
+  task_->start(config_.ready ? 0 : 70);
+}
+
+void ImuCommand::PrintUsage() {
+  puts(
+      "Usage: imu SENSOR FS ODR BDR LIMIT\n"
+      "  SENSOR = accel | gyro");
+}
+
+const char* const ImuCommand::kCommandName{"imu"};
+const bool ImuCommand::registered{
+    CommandRegistry::RegisterCommand<ImuCommand>()};
+
+ISR(INT3_vect) {
+  task_->start();
+}

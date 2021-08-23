@@ -13,7 +13,9 @@ struct ScheduledTask final : public TaskInterface {
       : until{t.start_}, name{t.name_}, runner{t.runner_}, period{t.period_} {}
   
   void pause() override { until = Task::kPause; }
-  void start() override { until = Timer::Millis(); }
+  void start(uint16_t delay_ms = 0) override {
+    until = Timer::Millis() + delay_ms;
+  }
   void set_period(uint16_t period_ms) override { period = period_ms; }
 
   uint64_t until{};

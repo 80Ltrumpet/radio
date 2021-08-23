@@ -1,7 +1,6 @@
 #include "platform.h"
 
-#include "imu.h"
-#include "mag.h"
+#include "pickup.h"
 #include "usb.h"
 
 namespace Platform {
@@ -11,8 +10,7 @@ void InitPreSei() {
 }
 
 void InitPostSei() {
-  Imu::Init();
-  Mag::Init();
+  Pickup::Init();
 }
 
 }  // namespace Platform
