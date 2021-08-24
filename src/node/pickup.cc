@@ -5,7 +5,6 @@
 #include <stdio.h>
 
 #include "atomic.h"
-#include "command_registry.h"
 #include "lsm6dsox.h"
 #include "ring_buffer.h"
 #include "scheduler.h"
@@ -13,8 +12,7 @@
 
 using namespace lsm6dsox;
 
-enum class AlgoState : uint8_t {
-  Init,
+enum class State : uint8_t {
   // Sleep state is inactive.
   Inactive,
   // IN/ACT is disabled to allow gyro to confirm pickup.
@@ -34,13 +32,49 @@ constexpr auto kGyroOdr{Bits::ODR_G_208};
 constexpr auto kGyroBdr{Bits::BDR_104 << Bits::BDR_GY_};
 constexpr uint16_t kGyroBdrThreshold{12};
 
-AlgoState algo_state_{AlgoState::Init};
+State state_{State::ActiveGyro};
 Twi::Device imu_{kI2cAddr};
 TaskHandle task_{};
 Vec3<float> gyro_vec_{};
 RingBuffer<Vec3<float>, 3> gyro_buffer_{};
 bool outstanding_irq_{};
-bool picked_up_{};
+bool output_{};
+
+void configure_imu() {
+  uint8_t wbuf[4];
+
+  // Soft reset.
+  imu_.write(Reg::CTRL3_C, Reg::Reset::CTRL3_C | Bits::SW_RESET);
+  // Disable I3C.
+  imu_.write(Reg::CTRL9_XL, Reg::Reset::CTRL9_XL | Bits::I3C_DISABLE);
+  // Configure FIFO for gyro (FIFO_CTRL3, FIFO_CTRL4).
+  wbuf[0] = kGyroBdr;
+  wbuf[1] = Bits::FIFO_MODE_STOP_ON_FULL;
+  // Trigger COUNTER_BDR on every 12 gyro batches (COUNTER_BDR_REG1,
+  // COUNTER_BDR_REG2).
+  wbuf[2] = Bits::RST_COUNTER_BDR | Bits::TRIG_COUNTER_BDR;
+  wbuf[2] |= (kGyroBdrThreshold >> 8) & Bits::CNT_BDR_TH_H;
+  wbuf[3] = kGyroBdrThreshold & 0xff;
+  imu_.write(Reg::FIFO_CTRL3, wbuf, 4);
+  // Route COUNTER_BDR to INT2.
+  imu_.write(Reg::INT2_CTRL, Bits::INT2_CNT_BDR);
+  // Disable high-performance mode (CTRL6_C, CTRL7_G).
+  wbuf[0] = Bits::XL_HM_MODE;
+  wbuf[1] = Bits::G_HM_MODE;
+  imu_.write(Reg::CTRL6_C, wbuf, 2);
+  // Set the wake-up threshold to ~23.4 milli-g (WAKE_UP_THS, WAKE_UP_DUR).
+  wbuf[0] = 3 & Bits::WK_THS;
+  wbuf[1] = Bits::WAKE_THS_W;
+  imu_.write(Reg::WAKE_UP_THS, wbuf, 2);
+  // Route SLEEP_CHANGE to INT2.
+  imu_.write(Reg::MD2_CFG, Bits::INT2_SLEEP_CHANGE);
+  // Enable (in)activity detection.
+  imu_.write(Reg::TAP_CFG2, Bits::INTERRUPTS_ENABLE | Bits::INACT_EN_G_SLEEP);
+  // Enable the IMU (CTRL1_XL, CTRL2_G).
+  wbuf[0] = kAccelOdr | kAccelFullScale;
+  wbuf[1] = kGyroOdr | kGyroFullScale;
+  imu_.write(Reg::CTRL1_XL, wbuf, 2);
+}
 
 inline constexpr float abs(float x) {
   return x >= 0.0f ? x : -x;
@@ -66,7 +100,7 @@ void get_gyro_mean() {
 void start_gyro_loop() {
   uint8_t wbuf[2];
   // Clear INTERRUPTS_ENABLE.
-  imu_.write(Reg::TAP_CFG2, Bits::INACT_EN_G_SLEEP);
+  imu_.write(Reg::TAP_CFG2, 0);
   // Start the FIFO and clear the BDR counter (FIFO_CTRL4, COUNTER_BDR_REG1).
   wbuf[0] = Bits::FIFO_MODE_STOP_ON_FULL;
   wbuf[1] = Bits::RST_COUNTER_BDR | Bits::TRIG_COUNTER_BDR;
@@ -106,7 +140,7 @@ bool is_gyro_twitching() {
 }
 
 void pick_up(bool is_picked_up) {
-  if (picked_up_ == is_picked_up) return;
+  if (output_ == is_picked_up) return;
   if (is_picked_up) {
     // TODO: Debug print, for now.
     puts("^");
@@ -114,7 +148,7 @@ void pick_up(bool is_picked_up) {
     // TODO: Debug print, for now.
     puts("v");
   }
-  picked_up_ = is_picked_up;
+  output_ = is_picked_up;
 }
 
 void run() {
@@ -125,31 +159,22 @@ void run() {
   const bool asleep{imu_.read(Reg::WAKE_UP_SRC) & Bits::SLEEP_STATE};
   const bool fifo_ready{imu_.read(Reg::FIFO_STATUS2) & Bits::COUNTER_BDR_IA};
 
-  switch (algo_state_) {
-    case AlgoState::Init:
-      if (asleep) {
-        algo_state_ = AlgoState::Inactive;
-      } else {
-        algo_state_ = AlgoState::OnlyGyro;
-        start_gyro_loop();
-      }
-      break;
-
-    case AlgoState::Inactive:
+  switch (state_) {
+    case State::Inactive:
       if (!asleep) {
-        algo_state_ = AlgoState::OnlyGyro;
+        state_ = State::OnlyGyro;
         start_gyro_loop();
       }
       break;
 
-    case AlgoState::OnlyGyro:
+    case State::OnlyGyro:
       if (fifo_ready) {
         get_gyro_mean();
         if (gyro_buffer_.full()) {
           if (is_gyro_twitching()) {
             pick_up(true);
           } else {
-            algo_state_ = AlgoState::ActiveGyro;
+            state_ = State::ActiveGyro;
             imu_.write(Reg::TAP_CFG2,
                        Bits::INTERRUPTS_ENABLE | Bits::INACT_EN_G_SLEEP);
           }
@@ -158,17 +183,18 @@ void run() {
       }
       break;
 
-    case AlgoState::ActiveGyro:
+    case State::ActiveGyro:
       if (asleep) {
         pick_up(false);
-        algo_state_ = AlgoState::Inactive;
+        state_ = State::Inactive;
         stop_gyro_loop();
       } else if (fifo_ready) {
         get_gyro_mean();
-        if (is_gyro_twitching()) {
-          algo_state_ = AlgoState::OnlyGyro;
+        if (gyro_buffer_.full() && is_gyro_twitching()) {
+          pick_up(true);
+          state_ = State::OnlyGyro;
           // Clear INTERRUPTS_ENABLE.
-          imu_.write(Reg::TAP_CFG2, Bits::INACT_EN_G_SLEEP);
+          imu_.write(Reg::TAP_CFG2, 0);
         }
         gyro_buffer_.push(gyro_vec_);
       }
@@ -191,43 +217,14 @@ void Init() {
   if (imu_.read(Reg::WHO_AM_I) != Reg::Reset::WHO_AM_I) {
     return;
   }
+  
+  task_ = Scheduler::AddTask({"pickup", run, 0, Task::kPause});
 
   // Configure the external interrupt (rising edge).
   EICRA |= _BV(ISC31) | _BV(ISC30);
   EIMSK |= _BV(INT3);
 
-  uint8_t wbuf[2];
-
-  // Disable I3C.
-  imu_.write(Reg::CTRL9_XL, Reg::Reset::CTRL9_XL | Bits::I3C_DISABLE);
-  // Configure FIFO for gyro, but leave it disabled.
-  imu_.write(Reg::FIFO_CTRL3, kGyroBdr);
-  // Trigger COUNTER_BDR on every 12 gyro batches (COUNTER_BDR_REG1,
-  // COUNTER_BDR_REG2).
-  wbuf[0] = Bits::RST_COUNTER_BDR | Bits::TRIG_COUNTER_BDR;
-  wbuf[0] |= (kGyroBdrThreshold >> 8) & Bits::CNT_BDR_TH_H;
-  wbuf[1] = kGyroBdrThreshold & 0xff;
-  imu_.write(Reg::COUNTER_BDR_REG1, wbuf, 2);
-  // Route COUNTER_BDR to INT2.
-  imu_.write(Reg::INT2_CTRL, Bits::INT2_CNT_BDR);
-  // Disable high-performance mode (CTRL6_C, CTRL7_G).
-  wbuf[0] = Bits::XL_HM_MODE;
-  wbuf[1] = Bits::G_HM_MODE;
-  imu_.write(Reg::CTRL6_C, wbuf, 2);
-  // Set the wake-up threshold to ~23.4 milli-g (WAKE_UP_THS, WAKE_UP_DUR).
-  wbuf[0] = 3 & Bits::WK_THS;
-  wbuf[1] = Bits::WAKE_THS_W;
-  imu_.write(Reg::WAKE_UP_THS, wbuf, 2);
-  // Route SLEEP_CHANGE to INT2.
-  imu_.write(Reg::MD2_CFG, Bits::INT2_SLEEP_CHANGE);
-  // Enable (in)activity detection.
-  imu_.write(Reg::TAP_CFG2, Bits::INTERRUPTS_ENABLE | Bits::INACT_EN_G_SLEEP);
-  // Enable the IMU (CTRL1_XL, CTRL2_G).
-  wbuf[0] = kAccelOdr | kAccelFullScale;
-  wbuf[1] = kGyroOdr | kGyroFullScale;
-  imu_.write(Reg::CTRL1_XL, wbuf, 2);
-  
-  task_ = Scheduler::AddTask({"pickup", run});
+  configure_imu();
 }
 
 }  // namespace Pickup
