@@ -36,7 +36,7 @@ void EepromCommand::CommandHandler(int argc, const char *argv[])
   {
     const uint16_t remaining{len - offset};
     rlen = remaining < kBufLen ? remaining : kBufLen;
-    auto read{Eeprom::Read(addr + offset, buffer, rlen)};
+    auto read{Eeprom::Read(Eeprom::Datum{addr + offset, rlen}, buffer)};
     // Print up to eight bytes per line.
     for (uint16_t i{}; i < read; ++i)
     {

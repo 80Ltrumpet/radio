@@ -26,6 +26,8 @@ $(error Invalid CONFIG)
 endif
 
 SOURCES := $(subst /,\,$(wildcard src/*.cc)) $(SOURCES)
+# Comment/uncomment the next line to disable/enable optional modules.
+# SOURCES += $(subst /,\,$(wildcard src/opt/*.cc))
 OBJECTS := $(SOURCES:.cc=.o)
 
 # Pre-compute static provisioning for tasks and commands.

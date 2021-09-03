@@ -39,6 +39,7 @@ Vec3<float> gyro_vec_{};
 RingBuffer<Vec3<float>, 3> gyro_buffer_{};
 bool outstanding_irq_{};
 bool output_{};
+Pickup::Listener listener_{};
 
 void configure_imu() {
   uint8_t wbuf[4];
@@ -141,14 +142,10 @@ bool is_gyro_twitching() {
 
 void pick_up(bool is_picked_up) {
   if (output_ == is_picked_up) return;
-  if (is_picked_up) {
-    // TODO: Debug print, for now.
-    puts("^");
-  } else {
-    // TODO: Debug print, for now.
-    puts("v");
-  }
   output_ = is_picked_up;
+
+  if (!listener_) return;
+  listener_.on_pickup(is_picked_up);
 }
 
 void run() {
@@ -225,6 +222,12 @@ void Init() {
   EIMSK |= _BV(INT3);
 
   configure_imu();
+}
+
+bool IsPickedUp() { return output_; }
+
+void SetListener(Listener&& listener) {
+  listener_ = static_cast<Listener&&>(listener);
 }
 
 }  // namespace Pickup
