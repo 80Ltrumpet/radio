@@ -14,6 +14,7 @@ struct Datum final {
 namespace Data {
 
 constexpr Datum RadioAddress{0x0000, 1};
+constexpr Datum RgbCount{0x0001, 1};
 
 }  // namespace Data
 

@@ -19,8 +19,9 @@ void on_payload_ready(int8_t rssi) {
 void on_pickup([[maybe_unused]] bool is_picked_up) { task_->start(); }
 
 void run() {
-  Puzzle::Header packet{Pickup::IsPickedUp() ? Puzzle::Header::kTypePickUp
-                                             : Puzzle::Header::kTypePutDown};
+  using Puzzle::Header;
+  Header packet{Pickup::IsPickedUp() ? Header::kTypePickUp
+                                     : Header::kTypePutDown};
   Radio::Send(0, &packet, sizeof(packet));
   task_->pause();
 }
