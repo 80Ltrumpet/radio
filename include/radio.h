@@ -12,11 +12,13 @@ constexpr uint8_t kBroadcastAddr{RADIO_BROADCAST_ADDR};
 constexpr int8_t kRssiInvalid{0x7f};
 
 struct IFifoBuffer {
+  static constexpr uint8_t kSize{66};
   virtual const void* cget() const = 0;
   virtual void* get() = 0;
   virtual const uint8_t* cbytes() const = 0;
   virtual uint8_t* bytes() = 0;
-  static constexpr uint8_t Size() { return 66; }
+
+  constexpr uint8_t size() const { return kSize; }
 };
 
 // FIFO buffer wrapper with internally allocated memory
@@ -30,11 +32,10 @@ class FifoBuffer final : public IFifoBuffer {
   uint8_t* bytes() override { return buffer_; }
 
  private:
-  uint8_t buffer_[Size()];
+  uint8_t buffer_[kSize];
 };
 
-// FIFO buffer wrapper that assumes the pointer is allocated with Size()
-// bytes
+// FIFO buffer wrapper that assumes the pointer is allocated with kSize bytes
 class FifoBufferPtr final : public IFifoBuffer {
  public:
   explicit constexpr FifoBufferPtr(void* ptr) : ptr_{ptr} {}
