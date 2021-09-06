@@ -1,6 +1,0 @@
-{
-    "makefile.extensionOutputFolder": "./.vscode",
-    "makefile.additionalCompilerNames": [
-        "avr-g\\+\\+"
-    ],
-}
