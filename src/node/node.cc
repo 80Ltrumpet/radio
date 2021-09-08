@@ -2,6 +2,7 @@
 
 #include "pickup.h"
 #include "puzzle.h"
+#include "rgb.h"
 #include "usb.h"
 
 namespace Platform {
@@ -11,6 +12,7 @@ void InitPreSei() {
 }
 
 void InitPostSei() {
+  Rgb::Init();
   Pickup::Init();
   Puzzle::Init();
 }

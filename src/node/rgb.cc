@@ -172,21 +172,13 @@ void Init() {
   const uint8_t led_count{Color::N * rgb_count_};
   const auto led_mask{WordRegMask((1 << led_count) - 1)};
 
-  // Configure all other ports as inputs and disable interrupts.
-  uint8_t buf[4]{
-      ~(led_mask & 0xff),  // CONFIG0
-      ~(led_mask >> 8),    // CONFIG1
-      0xff,                // INT_DISABLE0
-      0xff                 // INT_DISABLE1
-  };
-  dev_.write(Reg::CONFIG0, buf, sizeof(buf));
-
-  // TODO: Test if I_MAX = 19 mA is bright enough...
   // Set the maximum current to 19 mA and configure LED ports.
-  buf[0] = Bits::ISEL_19MA;  // CTL
-  buf[1] = led_mask & 0xff;  // MODE0
-  buf[2] = led_mask >> 8;    // MODE1
-  dev_.write(Reg::CTL, buf, 3);
+  uint8_t buf[3]{
+      Bits::ISEL_19MA,      // CTL
+      ~(led_mask & 0xff),   // MODE0
+      ~(led_mask >> 8)      // MODE1
+  };
+  dev_.write(Reg::CTL, buf, sizeof(buf));
 
   task_ = Scheduler::AddTask({"rgb", run, 0, Task::kPause});
 }
