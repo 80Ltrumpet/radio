@@ -152,37 +152,10 @@ void configure() {
   buffer[1] = Radio::kBroadcastAddr;
   write(Reg::NodeAdrs, buffer, 2);
 
-  // Configure listen timings to an 80% duty cycle with ~80 milliseconds of Rx
-  // and ~20 milliseconds of idle. Packet acceptance requires an address match.
-  // After listening, return to the currently programmed mode.
-  buffer[0] = ListenResolIdle4100us | ListenResolRx4100us | ListenCriteria |
-              ListenEndMode;
-  buffer[1] = 5;   // 20.5 ms
-  buffer[2] = 20;  // 82.0 ms
-  write(Reg::Listen1, buffer, 3);
-
   // Leave everything else at default values.
 }
 
-void set_listen(bool enable) {
-  auto op_mode{op_mode_};
-  if ((op_mode & Bits::ListenOn) == enable) return;
-
-  if (enable) {
-    op_mode |= Bits::ListenOn;
-  } else {
-    // Need to set and clear ListenAbort in two separate SPI transactions.
-    op_mode = (op_mode | Bits::ListenAbort) & ~Bits::ListenOn;
-    write(Reg::OpMode, op_mode);
-    op_mode &= ~Bits::ListenAbort;
-  }
-
-  write(Reg::OpMode, op_mode);
-  op_mode_ = op_mode;
-}
-
 void set_op_mode(uint8_t mode) {
-  set_listen(false);
   if (auto op_mode{op_mode_}; (op_mode & Bits::Mode) != mode) {
     op_mode = (op_mode & ~Bits::Mode) | mode;
     write(Reg::OpMode, op_mode);
@@ -250,25 +223,12 @@ void SetClient(Client&& client) {
   client_ = static_cast<Client&&>(client);
 }
 
-// If high_power is true, use Rx mode instead of the internal Rx/Idle duty
-// cycle (see configure()).
-void Listen(bool high_power) {
-  if (high_power) {
-    if ((op_mode_ & Bits::Mode) == Bits::ModeRx) return;
-    set_op_mode(Bits::ModeRx);
-  } else {
-    // Minor optimization (set_listen() also checks this).
-    if (op_mode_ & Bits::ListenOn) return;
-    // Listen mode can only be enabled while in standby (idle).
-    set_op_mode(Bits::ModeStdby);
-  }
+void Listen() {
+  if ((op_mode_ & Bits::Mode) == Bits::ModeRx) return;
+  set_op_mode(Bits::ModeRx);
 
   // Switch the interrupt source to PayloadReady.
   write(Reg::DioMapping1, 1 << Bits::Dio0Mapping_);
-
-  if (!high_power) {
-    set_listen(true);
-  }
 }
 
 bool Receive(IFifoBuffer* buffer) {

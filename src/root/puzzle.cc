@@ -1,7 +1,5 @@
 #include "puzzle.h"
 
-#include <stdio.h>
-
 #include "radio.h"
 #include "scheduler.h"
 
@@ -22,7 +20,7 @@ void run() {
     auto rhdr{reinterpret_cast<const Radio::Header*>(bytes)};
     if (*bytes < sizeof(*rhdr)) {
       // TODO: This is an ACK.
-      Radio::Listen(true);
+      Radio::Listen();
       return;
     }
 
@@ -51,7 +49,7 @@ void run() {
     }
   }
 
-  Radio::Listen(true);
+  Radio::Listen();
 }
 
 }  // namespace
