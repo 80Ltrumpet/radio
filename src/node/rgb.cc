@@ -15,9 +15,9 @@ namespace {
 using Rgb::Color;
 using Rgb::Pattern;
 
-constexpr uint8_t kMaxRgbCount{5};     // 16 / 3
-constexpr uint16_t kMinPeriodMs{200};  // 5 Hz
-constexpr uint16_t kAnimStepMs{33};    // ~30 Hz
+constexpr uint8_t kMaxRgbCount{5};      // 16 / 3
+constexpr uint16_t kMinPeriodMs{200};   // 5 Hz
+constexpr uint16_t kAnimStepMs{40};     // 25 Hz
 
 Twi::Device dev_{kI2cAddr};
 TaskHandle task_{};
@@ -62,7 +62,7 @@ Color color_lerp(const Color& a, const Color& b, float t) {
 // Sets all RGB LEDs to the given color.
 void update(const Color& color) {
   const uint8_t led_count{Color::N * rgb_count_};
-  uint8_t dim[Color::N * kMaxRgbCount];
+  uint8_t dim[led_count];
   for (uint8_t vi{}; vi < Color::N; ++vi) {
     for (uint8_t rgbi{}; rgbi < rgb_count_; ++rgbi) {
       dim[rgbi + vi * rgb_count_] = color.v[vi];
@@ -138,7 +138,7 @@ void run() {
 
   switch (pattern_) {
     case Pattern::Throb:
-      update(color_lerp(Color{color_.r >> 1, color_.g >> 1, color_.b >> 1},
+      update(color_lerp(Color{color_.r >> 2, color_.g >> 2, color_.b >> 2},
                         color_, s));
       break;
     case Pattern::SineOff:

@@ -26,7 +26,7 @@ struct Color final {
 enum class Pattern : uint8_t {
   None,       // Solid color (on/off)
   Blink,      // Full-scale 50% duty cycle square wave
-  Throb,      // Smooth oscillation between 50% and 100% of the chosen color
+  Throb,      // Smooth oscillation between 25% and 100% of the chosen color
   SineOff,    // Smooth oscillation between off and the chosen color
   SineWhite,  // Smooth oscillation between white and the chosen color
 };
