@@ -2,7 +2,7 @@
 
 MMCU := atmega2560
 
-SOURCES := $(subst /,\,$(wildcard src/root/*.cc))
+SOURCES := $(wildcard src/root/*.cc)
 
 DEFINES := -DF_CPU=16000000UL -DARDUINO_AVR_MEGA2560 -DBAUD=9600
 

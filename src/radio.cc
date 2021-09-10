@@ -78,7 +78,7 @@ inline void write(uint8_t addr, uint8_t byte) { write(addr, &byte, 1); }
 
 constexpr const uint8_t kSyncWords[]{RADIO_SYNC_WORDS};
 
-uint8_t address_{Radio::kInvalidAddr};
+uint8_t address_{Radio::kAddrInvalid};
 Radio::Client client_{};
 
 // Shadow register to optimize read-modify-write operations
@@ -87,6 +87,12 @@ uint8_t op_mode_{Reg::Reset::OpMode};
 // Reads the RSSI in dBm.
 int8_t read_rssi() {
   return -static_cast<int8_t>(read(Reg::RssiValue) >> 1);
+}
+
+void set_address(uint8_t addr) {
+  Eeprom::Update(Eeprom::Data::RadioAddress, &addr);
+  address_ = addr;
+  write(Reg::NodeAdrs, address_);
 }
 
 // Sets recommended defaults according to the data sheet.
@@ -146,10 +152,10 @@ void configure() {
   // Read the radio address programmed into the EEPROM.
   Eeprom::Read(Eeprom::Data::RadioAddress, &address_);
   // If the node address is the same as the broadcast address, mark it invalid.
-  if (address_ == Radio::kBroadcastAddr) address_ = Radio::kInvalidAddr;
+  if (address_ == Radio::kAddrBroadcast) address_ = Radio::kAddrInvalid;
   // Set the node and broadcast addresses.
   buffer[0] = address_;
-  buffer[1] = Radio::kBroadcastAddr;
+  buffer[1] = Radio::kAddrBroadcast;
   write(Reg::NodeAdrs, buffer, 2);
 
   // Leave everything else at default values.
@@ -213,18 +219,13 @@ void Init() {
 
 uint8_t GetAddress() { return address_; }
 
-void SetAddress(uint8_t addr) {
-  Eeprom::Update(Eeprom::Data::RadioAddress, &addr);
-  address_ = addr;
-  write(Reg::NodeAdrs, address_);
-}
-
 void SetClient(Client&& client) {
   client_ = static_cast<Client&&>(client);
 }
 
 void Listen() {
-  if ((op_mode_ & Bits::Mode) == Bits::ModeRx) return;
+  if (address_ == kAddrInvalid ||
+      (op_mode_ & Bits::Mode) == Bits::ModeRx) return;
   set_op_mode(Bits::ModeRx);
 
   // Switch the interrupt source to PayloadReady.
@@ -232,7 +233,8 @@ void Listen() {
 }
 
 bool Receive(IFifoBuffer* buffer) {
-  if (!(read(Reg::IrqFlags2) & Bits::FifoNotEmpty)) {
+  if (address_ == kAddrInvalid ||
+      !(read(Reg::IrqFlags2) & Bits::FifoNotEmpty)) {
     return false;
   }
 
@@ -248,6 +250,8 @@ bool Receive(IFifoBuffer* buffer) {
 }
 
 bool Send(uint8_t dest, const void* data, uint8_t length) {
+  if (address_ == kAddrInvalid || dest == kAddrInvalid) return false;
+
   // Can't send a packet that is longer than the FIFO.
   const auto total_length{length + sizeof(Header)};
   if (total_length > kFifoSize) return false;
@@ -297,3 +301,34 @@ ISR(INT6_vect) {
     if (client_.on_packet_sent) client_.on_packet_sent();
   }
 }
+
+struct RadioCommand final {
+  static void CommandHandler(int argc, const char* argv[]);
+  static const char* const kCommandName;
+
+ private:
+  static const bool registered;
+};
+
+void RadioCommand::CommandHandler(int argc, const char* argv[]) {
+  if (argc == 1) {
+    printf("%02x\n", Radio::GetAddress());
+    return;
+  }
+
+  char* endptr{};
+  auto addr{strtoul(argv[1], &endptr, 16)};
+  if (addr >= Radio::kAddrInvalid || *endptr != '\0') {
+    puts("Invalid hex address");
+  } else if (addr == Radio::kAddrBroadcast) {
+    puts("The requested address is reserved for broadcast.\n"
+         "Please try a different address.");
+  } else {
+    set_address(addr);
+    printf("Set radio address to %02x.\n", addr);
+  }
+}
+
+const char* const RadioCommand::kCommandName{"radio"};
+const bool RadioCommand::registered{
+  CommandRegistry::RegisterCommand<RadioCommand>()};

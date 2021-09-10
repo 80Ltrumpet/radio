@@ -10,6 +10,7 @@ include build/local.mk
 # Configuration makefiles must include the following:
 # - Define MMCU.
 # - Define the "install" target.
+# - (Optional) Additional SOURCES, DEFINES, or CPPFLAGS
 ifndef CONFIG
 ifneq ($(MAKECMDGOALS),clean)
 $(warning CONFIG is undefined. Defaulting to "node".)
@@ -25,14 +26,19 @@ else ifneq ($(CONFIG),)
 $(error Invalid CONFIG)
 endif
 
-SOURCES := $(subst /,\,$(wildcard src/*.cc)) $(SOURCES)
-# Comment/uncomment the next line to disable/enable optional modules.
-# SOURCES += $(subst /,\,$(wildcard src/opt/*.cc))
-OBJECTS := $(SOURCES:.cc=.o)
+OUTPUT := $(CONFIG).hex
+
+SOURCES := $(wildcard src/*.cc) $(SOURCES)
+
+OBJTOP := obj
+OBJDIR := $(OBJTOP)/$(CONFIG)
+OBJECTS := $(addprefix $(OBJDIR)/,$(SOURCES:.cc=.o))
+ELF := $(addprefix $(OBJDIR)/,$(OUTPUT:.hex=.elf))
 
 # Pre-compute static provisioning for tasks and commands.
-NUM_TASKS := $(shell findstr "::AddTask.*;" $(SOURCES) | find /c /v "")
-NUM_COMMANDS := $(shell findstr "::RegisterCommand<" $(SOURCES) | find /c /v "")
+WINSRC := $(subst /,\,$(SOURCES))
+NUM_TASKS := $(shell findstr "::AddTask.*;" $(WINSRC) | find /c /v "")
+NUM_COMMANDS := $(shell findstr "::RegisterCommand<" $(WINSRC) | find /c /v "")
 
 DEFINES := -DARDUINO=10813 $(DEFINES)
 # Custom definitions
@@ -52,31 +58,35 @@ HEXFLAGS := -O ihex -R .eeprom
 
 COMMON_FLAGS := -Wall -Wextra -Os -flto -mmcu=$(MMCU)
 
-# For implicit Make rules
-CC := $(AVR_TOOLS)/bin/avr-g++
 CXX := $(AVR_TOOLS)/bin/avr-g++
-CFLAGS := -std=c11
-CXXFLAGS := -std=c++17
+CXXFLAGS := -std=c++17 -MMD -MP
 CPPFLAGS := $(CPPFLAGS) $(COMMON_FLAGS) -w -ffunction-sections -fdata-sections
 CPPFLAGS += -fno-exceptions -fno-threadsafe-statics $(DEFINES) $(INCDIRS)
 LDFLAGS := $(LDFLAGS) $(COMMON_FLAGS) -fuse-linker-plugin -Wl,--gc-sections
 
 .PHONY: all
-all: $(CONFIG).hex
+all: $(OUTPUT)
 
-%.elf: $(OBJECTS)
+$(OBJECTS): $(OBJDIR)/%.o: %.cc
+	@if not exist $(@D) mkdir $(subst /,\,$(@D))
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+
+-include $(OBJECTS:.o=.d)
+
+$(ELF): $(OBJECTS)
 	$(CXX) $(LDFLAGS) -o $@ $^
 
 %.eep: %.elf
 	$(AVR_TOOLS)/bin/avr-objcopy $(EEPFLAGS) $^ $@
 
-%.hex: %.elf
+$(OUTPUT): $(ELF)
 	$(AVR_TOOLS)/bin/avr-objcopy $(HEXFLAGS) $^ $@
 
 .PHONY: clean
 clean:
-	@del *.elf *.hex
+	-rmdir /S /Q $(OBJTOP)
+	-del *.hex
 
 .PHONY: size
-size: $(CONFIG).elf
+size: $(ELF)
 	$(AVR_TOOLS)/bin/avr-size -A $^

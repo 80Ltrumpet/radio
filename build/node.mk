@@ -2,7 +2,7 @@
 
 MMCU := atmega32u4
 
-SOURCES := $(subst /,\,$(wildcard src/node/*.cc))
+SOURCES := $(wildcard src/node/*.cc)
 
 DEFINES := -DF_CPU=8000000L -DARDUINO_AVR_FEATHER32U4 -DARDUINO_ARCH_AVR
 DEFINES += -DUSB_VID=0x239A -DUSB_PID=0x800C "-DUSB_MANUFACTURER=\"Adafruit\""

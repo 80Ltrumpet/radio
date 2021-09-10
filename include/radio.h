@@ -6,8 +6,8 @@
 // module (task).
 namespace Radio {
 
-constexpr uint8_t kInvalidAddr{0xff};
-constexpr uint8_t kBroadcastAddr{RADIO_BROADCAST_ADDR};
+constexpr uint8_t kAddrInvalid{0xff};
+constexpr uint8_t kAddrBroadcast{RADIO_BROADCAST_ADDR};
 
 constexpr int8_t kRssiInvalid{0x7f};
 
@@ -65,7 +65,6 @@ struct Client final {
 void Init();
 
 uint8_t GetAddress();
-void SetAddress(uint8_t addr);
 
 void SetClient(Client&& client);
 

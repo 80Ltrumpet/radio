@@ -1,4 +1,4 @@
 .vscode/*.log
 build/local.mk
-*.elf
+obj/
 *.hex

@@ -29,20 +29,21 @@ void run() {
 
   if (Radio::Receive(&fifo_buffer_)) {
     auto bytes{fifo_buffer_.cbytes()};
-    if (*bytes < sizeof(Radio::Header)) {
+    auto rhdr{reinterpret_cast<const Radio::Header*>(bytes)};
+    if (*bytes < sizeof(*rhdr)) {
       // TODO: This is an ACK.
       Radio::Listen();
       return;
     }
 
     using Puzzle::Header;
-    auto hdr{reinterpret_cast<const Header*>(bytes + sizeof(Radio::Header))};
-    switch (hdr->type) {
+    auto phdr{reinterpret_cast<const Header*>(bytes + sizeof(Radio::Header))};
+    switch (phdr->type) {
       case Header::kTypeGetState:
         send_state();
         return;
       case Header::kTypeLedControl: {
-        auto led_ctrl{reinterpret_cast<const Puzzle::LedControlPacket*>(hdr)};
+        auto led_ctrl{reinterpret_cast<const Puzzle::LedControlPacket*>(phdr)};
         Rgb::Mutator rgb{};
         if (auto color{led_ctrl->get_color()}; color) {
           rgb.set_color(*color);
@@ -57,8 +58,13 @@ void run() {
             transition_ms) {
           rgb.set_transition_period(*transition_ms);
         }
-        Radio::Send(0, nullptr, 0);
-        return;
+
+        // Send an ACK only for unicast.
+        if (rhdr->dest == Radio::GetAddress()) {
+          Radio::Send(0, nullptr, 0);
+          return;
+        }
+        break;
       }
     }
   }

@@ -1,8 +1,12 @@
 #include "rgb.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "aw9523b.h"
+#include "command_registry.h"
 #include "eeprom.h"
 #include "scheduler.h"
 #include "timer.h"
@@ -227,3 +231,152 @@ const Mutator& Mutator::set_transition_period(uint16_t transition_ms) const {
 }
 
 }  // namespace Rgb
+
+
+struct RgbCommand final {
+  static void CommandHandler(int argc, const char* argv[]);
+  static const char* const kCommandName;
+
+ private:
+  static void PrintUsage();
+  static void SetSubcommand(int argc, const char* argv[]);
+  static void CountSubcommand(int argc, const char* argv[]);
+
+  static const bool registered;
+};
+
+void RgbCommand::CommandHandler(int argc, const char* argv[]) {
+  if (argc < 2) {
+    PrintUsage();
+    return;
+  }
+
+  if (strcmp(argv[1], "set") == 0) {
+    SetSubcommand(argc - 1, argv + 1);
+  } else if (strcmp(argv[1], "count") == 0) {
+    CountSubcommand(argc - 1, argv + 1);
+  } else {
+    printf("Unrecognized subcommand \"%s\".\n", argv[1]);
+    PrintUsage();
+  }
+}
+
+void RgbCommand::PrintUsage() {
+  puts("Usage: rgb set ...\n"
+       "           count [COUNT]");
+}
+
+void RgbCommand::SetSubcommand(int argc, const char* argv[]) {
+  static const char* const kMsgInvalid{"Invalid argument(s)"};
+  if (argc != 7) {
+    puts("Usage: rgb set R G B PATTERN PERIOD_MS TRANS_MS");
+    return;
+  }
+
+  char* endptr{};
+  auto red{strtol(argv[1], &endptr, 0)};
+  if (*endptr != '\0' || red < 0 || red > UINT8_MAX) {
+    puts(kMsgInvalid);
+    return;
+  }
+
+  endptr = nullptr;
+  auto green{strtol(argv[2], &endptr, 0)};
+  if (*endptr != '\0' || green < 0 || green > UINT8_MAX) {
+    puts(kMsgInvalid);
+    return;
+  }
+
+  endptr = nullptr;
+  auto blue{strtol(argv[3], &endptr, 0)};
+  if (*endptr != '\0' || blue < 0 || blue > UINT8_MAX) {
+    puts(kMsgInvalid);
+    return;
+  }
+
+  endptr = nullptr;
+  auto pattern{strtol(argv[4], &endptr, 10)};
+  if (*endptr != '\0' || pattern < 0 || pattern > 4) {
+    puts(kMsgInvalid);
+    return;
+  }
+
+  endptr = nullptr;
+  auto period_ms{strtol(argv[5], &endptr, 10)};
+  if (*endptr != '\0' || period_ms < 0) {
+    puts(kMsgInvalid);
+    return;
+  }
+
+  endptr = nullptr;
+  auto trans_ms{strtol(argv[6], &endptr, 10)};
+  if (*endptr != '\0' || trans_ms < 0) {
+    puts(kMsgInvalid);
+    return;
+  }
+
+  Rgb::Pattern patt_enum;
+  if (pattern == 1) {
+    patt_enum = Rgb::Pattern::Blink;
+  } else if (pattern == 2) {
+    patt_enum = Rgb::Pattern::Throb;
+  } else if (pattern == 3) {
+    patt_enum = Rgb::Pattern::SineOff;
+  } else if (pattern == 4) {
+    patt_enum = Rgb::Pattern::SineWhite;
+  } else {
+    patt_enum = Rgb::Pattern::None;
+  }
+
+  Rgb::Mutator{}
+      .set_color({red, green, blue})
+      .set_pattern(patt_enum)
+      .set_period(period_ms)
+      .set_transition_period(trans_ms);
+}
+
+void RgbCommand::CountSubcommand(int argc, const char* argv[]) {
+  if (argc == 1) {
+    uint8_t count;
+    Eeprom::Read(Eeprom::Data::RgbCount, &count);
+    if (count > kMaxRgbCount) {
+      puts("RGB count is not set.");
+    } else {
+      printf("%u\n", count);
+    }
+    return;
+  }
+
+  char* endptr{};
+  auto count{strtoul(argv[1], &endptr, 10)};
+  if (count == 0 || count > kMaxRgbCount || *endptr != '\0') {
+    puts("Invalid RGB count");
+    return;
+  }
+
+  if (count == rgb_count_) return;
+
+  auto old_count{rgb_count_};
+  rgb_count_ = count;
+  Eeprom::Update(Eeprom::Data::RgbCount, &rgb_count_);
+
+  if (old_count == 0) {
+    Rgb::Init();
+  } else {
+    const uint8_t led_count{Color::N * rgb_count_};
+    const auto led_mask{WordRegMask((1 << led_count) - 1)};
+
+    uint8_t buf[2]{
+        ~(led_mask & 0xff),   // MODE0
+        ~(led_mask >> 8)      // MODE1
+    };
+    dev_.write(Reg::MODE0, buf, sizeof(buf));
+
+    // Perform an immediate update.
+    Rgb::Mutator{}.set_transition_period(0);
+  }
+}
+
+const char* const RgbCommand::kCommandName{"rgb"};
+const bool RgbCommand::registered{
+    CommandRegistry::RegisterCommand<RgbCommand>()};
