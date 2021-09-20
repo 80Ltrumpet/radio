@@ -20,6 +20,7 @@
       "compilerPath": "${avrRoot}/bin/avr-g++",
       "compilerArgs": ["-mmcu=atmega32u4"],
       "cppStandard": "c++17",
+      "cStandard": "c11",
       "defines": [
         "F_CPU=8000000L",
         "ARDUINO_AVR_FEATHER32U4",
@@ -45,6 +46,7 @@
       "compilerPath": "${avrRoot}/bin/avr-g++",
       "compilerArgs": ["-mmcu=atmega2560"],
       "cppStandard": "c++17",
+      "cStandard": "c11",
       "defines": [
         "F_CPU=16000000UL",
         "ARDUINO_AVR_MEGA2560",
