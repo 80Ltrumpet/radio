@@ -63,10 +63,8 @@ void configure_imu() {
   wbuf[0] = Bits::XL_HM_MODE;
   wbuf[1] = Bits::G_HM_MODE;
   imu_.write(Reg::CTRL6_C, wbuf, 2);
-  // Set the wake-up threshold to ~23.4 milli-g (WAKE_UP_THS, WAKE_UP_DUR).
-  wbuf[0] = 3 & Bits::WK_THS;
-  wbuf[1] = Bits::WAKE_THS_W;
-  imu_.write(Reg::WAKE_UP_THS, wbuf, 2);
+  // Set the wake-up threshold to 31.25 milli-g.
+  imu_.write(Reg::WAKE_UP_THS, 1 & Bits::WK_THS);
   // Route SLEEP_CHANGE to INT2.
   imu_.write(Reg::MD2_CFG, Bits::INT2_SLEEP_CHANGE);
   // Enable (in)activity detection.
@@ -119,7 +117,7 @@ void stop_gyro_loop() {
 // Returns true if any of the axes of the last four window averages differ by
 // more than the threshold.
 bool is_gyro_twitching() {
-  constexpr auto kGyroTwitchThreshold{0.05f};
+  constexpr auto kGyroTwitchThreshold{0.08f};
   const auto length{gyro_buffer_.size()};
   for (uint8_t i{}; i < length; ++i) {
     const auto& v1{gyro_buffer_[i]};
