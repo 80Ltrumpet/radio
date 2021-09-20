@@ -69,6 +69,7 @@ uint8_t GetAddress();
 void SetClient(Client&& client);
 
 void Listen();
+void Standby();
 
 bool Receive(IFifoBuffer* buffer);
 bool Send(uint8_t dest, const void* data, uint8_t length);

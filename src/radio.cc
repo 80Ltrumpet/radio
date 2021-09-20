@@ -85,9 +85,7 @@ Radio::Client client_{};
 uint8_t op_mode_{Reg::Reset::OpMode};
 
 // Reads the RSSI in dBm.
-int8_t read_rssi() {
-  return -static_cast<int8_t>(read(Reg::RssiValue) >> 1);
-}
+int8_t read_rssi() { return -static_cast<int8_t>(read(Reg::RssiValue) >> 1); }
 
 void set_address(uint8_t addr) {
   Eeprom::Update(Eeprom::Data::RadioAddress, &addr);
@@ -219,17 +217,20 @@ void Init() {
 
 uint8_t GetAddress() { return address_; }
 
-void SetClient(Client&& client) {
-  client_ = static_cast<Client&&>(client);
-}
+void SetClient(Client&& client) { client_ = static_cast<Client&&>(client); }
 
 void Listen() {
-  if (address_ == kAddrInvalid ||
-      (op_mode_ & Bits::Mode) == Bits::ModeRx) return;
+  if (address_ == kAddrInvalid || (op_mode_ & Bits::Mode) == Bits::ModeRx) {
+    return;
+  }
   set_op_mode(Bits::ModeRx);
 
   // Switch the interrupt source to PayloadReady.
   write(Reg::DioMapping1, 1 << Bits::Dio0Mapping_);
+}
+
+void Standby() {
+  set_op_mode(Bits::ModeStdby);
 }
 
 bool Receive(IFifoBuffer* buffer) {
@@ -321,8 +322,9 @@ void RadioCommand::CommandHandler(int argc, const char* argv[]) {
   if (addr >= Radio::kAddrInvalid || *endptr != '\0') {
     puts("Invalid hex address");
   } else if (addr == Radio::kAddrBroadcast) {
-    puts("The requested address is reserved for broadcast.\n"
-         "Please try a different address.");
+    puts(
+        "The requested address is reserved for broadcast.\n"
+        "Please try a different address.");
   } else {
     set_address(addr);
     printf("Set radio address to %02x.\n", addr);
@@ -331,4 +333,4 @@ void RadioCommand::CommandHandler(int argc, const char* argv[]) {
 
 const char* const RadioCommand::kCommandName{"radio"};
 const bool RadioCommand::registered{
-  CommandRegistry::RegisterCommand<RadioCommand>()};
+    CommandRegistry::RegisterCommand<RadioCommand>()};
