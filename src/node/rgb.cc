@@ -140,6 +140,9 @@ void run() {
   // Compute s (sinusoidal interpolation coefficient).
   const auto s{cosf(2 * M_PI * t) * 0.5f + 0.5f};
 
+  // Since s is based on the cosine, it starts and ends at 1 over the period.
+  // That is why all of the lerps below use the base color as the second
+  // argument.
   switch (pattern_) {
     case Pattern::Throb:
       update(color_lerp(Color{color_.r >> 2, color_.g >> 2, color_.b >> 2},
@@ -176,9 +179,9 @@ void Init() {
   const uint8_t led_count{Color::N * rgb_count_};
   const auto led_mask{WordRegMask((1 << led_count) - 1)};
 
-  // Set the maximum current to 19 mA and configure LED ports.
+  // Set the maximum current to 9 mA and configure LED ports.
   uint8_t buf[3]{
-      Bits::ISEL_19MA,      // CTL
+      Bits::ISEL_9MA,       // CTL
       ~(led_mask & 0xff),   // MODE0
       ~(led_mask >> 8)      // MODE1
   };
