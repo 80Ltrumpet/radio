@@ -8,9 +8,17 @@
 class AtomicLock {
  public:
   explicit AtomicLock() : sreg_{SREG} { cli(); }
+  // Intentionally *not* declared virtual to avoid the need to define the
+  // delete operator.
   ~AtomicLock() {
     if (locked_) SREG = sreg_;
   }
+
+  AtomicLock(const AtomicLock&) = delete;
+  AtomicLock& operator=(const AtomicLock&) = delete;
+
+  AtomicLock(AtomicLock&&) = delete;
+  AtomicLock& operator=(AtomicLock&&) = delete;
 
   void lock() {
     if (!locked_) {
