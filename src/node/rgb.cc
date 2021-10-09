@@ -63,6 +63,10 @@ Color color_lerp(const Color& a, const Color& b, float t) {
                lerp(a.b, b.b, t)};
 }
 
+uint8_t color_max(const Color& c) {
+  return c.r > c.g && c.r > c.b ? c.r : c.g > c.r && c.g > c.b ? c.g : c.b;
+}
+
 // Sets all RGB LEDs to the given color.
 void update(const Color& color) {
   const uint8_t led_count{Color::N * rgb_count_};
@@ -151,9 +155,12 @@ void run() {
     case Pattern::SineOff:
       update(color_lerp(Color{}, color_, s));
       break;
-    case Pattern::SineWhite:
-      update(color_lerp(Color{255, 255, 255}, color_, s));
+    case Pattern::SineWhite: {
+      // Use roughly the same white "intensity" as the base color.
+      const auto max{color_max(color_)};
+      update(color_lerp(Color{max, max, max}, color_, s));
       break;
+    }
     default:
       // Should never get here.
       break;
