@@ -68,7 +68,7 @@ void update_leds(uint8_t node) {
     if (node == 0) node = Radio::kAddrBroadcast;
     switch (puzzle_state_) {
     case PuzzleState::Correct:
-      led_ctrl.set_color({170, 128, 16});
+      led_ctrl.set_color({60, 0, 80});
       led_ctrl.set_pattern(Rgb::Pattern::SineWhite);
       led_ctrl.set_period(2000);
       led_ctrl.set_transition_period(2000);
