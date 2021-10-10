@@ -1,7 +1,7 @@
 #include "puzzle.h"
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "command_registry.h"
@@ -71,7 +71,7 @@ void update_leds(uint8_t node) {
       led_ctrl.set_color({60, 0, 80});
       led_ctrl.set_pattern(Rgb::Pattern::SineWhite);
       led_ctrl.set_period(2000);
-      led_ctrl.set_transition_period(2000);
+      led_ctrl.set_transition_period(1000);
       break;
     case PuzzleState::Incorrect:
     case PuzzleState::Initializing:
@@ -84,7 +84,7 @@ void update_leds(uint8_t node) {
       led_ctrl.set_color({0, 255, 0});
       led_ctrl.set_pattern(Rgb::Pattern::Throb);
       led_ctrl.set_period(1000);
-      led_ctrl.set_transition_period(1000);
+      led_ctrl.set_transition_period(500);
     }
   }
 
@@ -107,7 +107,12 @@ void handle_pickup(uint8_t node) {
     }
   }
 
-  update_leds(puzzle_state_ == prev_puzzle_state ? node : 0);
+  if (puzzle_state_ != prev_puzzle_state) {
+    update_leds(0);
+  } else if (puzzle_state_ != PuzzleState::Solved) {
+    update_leds(node);
+  }
+  // Don't relight LEDs after being put down in the solved state.
 }
 
 void handle_putdown(uint8_t node) {
@@ -257,8 +262,9 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
       for (uint8_t i{}; i < node_count_; ++i) {
         auto n{node_order_[i]};
         auto state{node_state_[n - 1]};
-        char s = state == NodeState::PickedUp ? '^' :
-                 state == NodeState::PutDown ? '_' : '?';
+        char s = state == NodeState::PickedUp  ? '^'
+                 : state == NodeState::PutDown ? '_'
+                                               : '?';
         printf("%u%c%c", n, s, i == node_count_ - 1 ? '\n' : ' ');
       }
       switch (puzzle_state_) {
@@ -292,8 +298,9 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
     Eeprom::Update(Eeprom::Data::NodeOrder, order);
   } else {
 usage:
-    puts("Usage: puzzle pause | restart | status\n"
-         "              order ADDR...");
+    puts(
+        "Usage: puzzle pause | restart | status\n"
+        "              order ADDR...");
   }
 }
 
