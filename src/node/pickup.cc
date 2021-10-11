@@ -63,8 +63,8 @@ void configure_imu() {
   wbuf[0] = Bits::XL_HM_MODE;
   wbuf[1] = Bits::G_HM_MODE;
   imu_.write(Reg::CTRL6_C, wbuf, 2);
-  // Set the wake-up threshold to 31.25 milli-g.
-  imu_.write(Reg::WAKE_UP_THS, 1 & Bits::WK_THS);
+  // Set the wake-up threshold to 62.5 milli-g.
+  imu_.write(Reg::WAKE_UP_THS, 2 & Bits::WK_THS);
   // Route SLEEP_CHANGE to INT2.
   imu_.write(Reg::MD2_CFG, Bits::INT2_SLEEP_CHANGE);
   // Enable (in)activity detection.
