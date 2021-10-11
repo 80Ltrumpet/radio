@@ -7,21 +7,14 @@
 
 #include "atomic.h"
 #include "console.h"
+#include "ring_buffer.h"
 #include "timer.h"
-
-// Ring buffer for USART TX/RX.
-struct RingBuffer final {
-  static constexpr uint8_t kSize{64};
-  volatile uint8_t head{};
-  volatile uint8_t tail{};
-  char data[kSize];
-};
 
 namespace {
 
 // USART transmit/receive ring buffers
-RingBuffer tx_{};
-RingBuffer rx_{};
+RingBuffer<char, 64> tx_{};
+RingBuffer<char, 64> rx_{};
 
 // Standard output/error stream
 FILE stream_{};
@@ -29,12 +22,11 @@ FILE stream_{};
 // Input hook for Console
 bool get_char(char& c) {
   AtomicLock lock{};
-  if (rx_.head >= rx_.tail) {
-    rx_.head = rx_.tail = 0;
+  if (rx_.empty()) {
     return false;
   }
 
-  c = rx_.data[rx_.head++ & (RingBuffer::kSize - 1)];
+  c = rx_.pop_front();
   return true;
 }
 
@@ -45,12 +37,12 @@ int put_char(char c, FILE* stream) {
   // Wait until there is room in the transmit buffer.
   constexpr uint64_t kTxTimeoutMs{5};
   const auto timeout{Timer::Millis() + kTxTimeoutMs};
-  while (tx_.tail - tx_.head >= RingBuffer::kSize) {
+  while (tx_.full()) {
     if (Timer::Millis() >= timeout) return _FDEV_ERR;
   }
 
   AtomicLock lock{};
-  tx_.data[tx_.tail++ & (RingBuffer::kSize - 1)] = c;
+  tx_.push_back(c);
   UCSR0B |= _BV(UDRIE0);
   UCSR0A |= _BV(TXC0);
 
@@ -87,8 +79,8 @@ ISR(USART0_RX_vect) {
   char c{UDR0};
   if (parity_check) {
     // Drop input that would overflow the buffer.
-    if (rx_.tail - rx_.head < RingBuffer::kSize) {
-      rx_.data[rx_.tail++ & (RingBuffer::kSize - 1)] = c;
+    if (!rx_.full()) {
+      rx_.push_back(c);
     }
   }
 
@@ -96,17 +88,12 @@ ISR(USART0_RX_vect) {
 }
 
 ISR(USART0_UDRE_vect) {
-  if (tx_.head < tx_.tail) {
-    UDR0 = tx_.data[tx_.head++ & (RingBuffer::kSize - 1)];
-    // Prevent overflow.
-    if (tx_.head >= RingBuffer::kSize) {
-      tx_.head -= RingBuffer::kSize;
-      tx_.tail -= RingBuffer::kSize;
-    }
-  } else {
+  if (tx_.empty()) {
     // There is nothing to transmit. Disable this interrupt and reset the
     // buffer.
     UCSR0B &= ~_BV(UDRIE0);
-    tx_.head = tx_.tail = 0;
+    tx_.clear();
+  } else {
+    UDR0 = tx_.pop_front();
   }
 }

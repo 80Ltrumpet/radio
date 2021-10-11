@@ -174,7 +174,7 @@ void run() {
                        Bits::INTERRUPTS_ENABLE | Bits::INACT_EN_G_SLEEP);
           }
         }
-        gyro_buffer_.push(gyro_vec_);
+        gyro_buffer_.push_back(gyro_vec_);
       }
       break;
 
@@ -191,7 +191,7 @@ void run() {
           // Clear INTERRUPTS_ENABLE.
           imu_.write(Reg::TAP_CFG2, 0);
         }
-        gyro_buffer_.push(gyro_vec_);
+        gyro_buffer_.push_back(gyro_vec_);
       }
       break;
   }
