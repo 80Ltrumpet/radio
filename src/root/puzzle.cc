@@ -111,12 +111,7 @@ void handle_pickup(uint8_t node) {
     }
   }
 
-  if (puzzle_state_ != prev_puzzle_state) {
-    update_leds(0);
-  } else if (puzzle_state_ != PuzzleState::Solved) {
-    update_leds(node);
-  }
-  // Don't relight LEDs after being put down in the solved state.
+  update_leds(puzzle_state_ == prev_puzzle_state ? node : 0);
 }
 
 void handle_putdown(uint8_t node) {
