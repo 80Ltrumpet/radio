@@ -6,6 +6,7 @@
 
 #include "command_registry.h"
 #include "eeprom.h"
+#include "gpio.h"
 #include "radio.h"
 #include "scheduler.h"
 
@@ -23,6 +24,8 @@ enum class PuzzleState : uint8_t {
 };
 
 namespace {
+
+Gpio relay_{PINE, 4};
 
 TaskHandle task_{};
 Radio::FifoBuffer fifo_buffer_{};
@@ -101,6 +104,7 @@ void handle_pickup(uint8_t node) {
       ++node_expected_;
       if (node_expected_ >= node_count_) {
         puzzle_state_ = PuzzleState::Solved;
+        relay_.clear();
       }
     } else {
       puzzle_state_ = PuzzleState::Incorrect;
@@ -143,6 +147,7 @@ void handle_putdown(uint8_t node) {
     if (all_down) {
       node_expected_ = 0;
       puzzle_state_ = PuzzleState::Correct;
+      relay_.set();
     }
     break;
   }
@@ -230,6 +235,10 @@ void restart() {
 namespace Puzzle {
 
 void Init() {
+  // The relay should be initially in its "normal" state (NO open; NC closed).
+  relay_.set();
+  relay_.out();
+
   task_ = Scheduler::AddTask({"puzzle", run, 0, Task::kPause});
   Radio::SetClient({on_payload_ready, on_packet_sent});
   restart();
@@ -296,6 +305,9 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
       order[i] = Radio::kAddrInvalid;
     }
     Eeprom::Update(Eeprom::Data::NodeOrder, order);
+  } else if (strcmp(argv[1], "toggle") == 0) {
+    // Cheat code. :)
+    relay_.toggle();
   } else {
 usage:
     puts(
