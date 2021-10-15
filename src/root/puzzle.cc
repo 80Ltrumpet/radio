@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "atomic.h"
 #include "command_registry.h"
 #include "eeprom.h"
 #include "gpio.h"
@@ -39,9 +40,14 @@ uint8_t node_expected_{};
 NodeState node_state_[kMaxNodes];
 PuzzleState puzzle_state_{PuzzleState::Initializing};
 
+bool outstanding_irq_{};
+bool sending_{};
 bool sent_get_state_{};
 
 void on_packet_sent() {
+  outstanding_irq_ = true;
+  sending_ = false;
+
   // Immediately start listening after sending a packet.
   Radio::Listen();
 
@@ -55,8 +61,9 @@ void on_packet_sent() {
 }
 
 void on_payload_ready([[maybe_unused]] int8_t rssi) {
+  outstanding_irq_ = true;
   // TODO: Delay sending, not receiving.
-  task_->start(50);
+  task_->start(20);
 }
 
 // Sends an LED control packet based on the current puzzle state. If node is
@@ -91,6 +98,9 @@ void update_leds(uint8_t node) {
     }
   }
 
+  AtomicLock lock{};
+  sending_ = true;
+  lock.unlock();
   Radio::Send(node, &led_ctrl, sizeof(led_ctrl));
 }
 
@@ -152,7 +162,11 @@ void handle_putdown(uint8_t node) {
 }
 
 void run() {
-  task_->pause();
+  AtomicLock lock{};
+  outstanding_irq_ = false;
+  // Don't interrupt sending a packet.
+  if (sending_) return;
+  lock.unlock();
 
   if (!Radio::IsListening() && Radio::Receive(&fifo_buffer_)) {
     auto bytes{fifo_buffer_.cbytes()};
@@ -162,42 +176,55 @@ void run() {
     switch (phdr->type) {
     case Puzzle::Header::kTypePutDown:
       handle_putdown(rhdr->src);
-      return;
+      break;
     case Puzzle::Header::kTypePickUp:
       handle_pickup(rhdr->src);
-      return;
-    }
-  }
-
-  Radio::Listen();
-
-  if (puzzle_state_ != PuzzleState::Initializing) return;
-
-  // Check if there are any nodes in the unknown state.
-  uint8_t unknown{};
-  bool picked_up{};
-  for (uint8_t i{}; i < node_count_; ++i) {
-    const uint8_t node{node_order_[i]};
-    const auto state{node_state_[node - 1]};
-    if (state == NodeState::Unknown) {
-      unknown = node;
       break;
     }
-    if (state == NodeState::PickedUp) {
-      picked_up = true;
+  }
+
+  lock.lock();
+  if (!sending_ && puzzle_state_ == PuzzleState::Initializing) {
+    lock.unlock();
+    // Check if there are any nodes in the unknown state.
+    uint8_t unknown{};
+    bool picked_up{};
+    for (uint8_t i{}; i < node_count_; ++i) {
+      const uint8_t node{node_order_[i]};
+      const auto state{node_state_[node - 1]};
+      if (state == NodeState::Unknown) {
+        unknown = node;
+        break;
+      }
+      if (state == NodeState::PickedUp) {
+        picked_up = true;
+      }
     }
+
+    if (unknown) {
+      // Ask for the state.
+      lock.lock();
+      sent_get_state_ = true;
+      sending_ = true;
+      lock.unlock();
+      Puzzle::Header packet{Puzzle::Header::kTypeGetState};
+      Radio::Send(unknown, &packet, sizeof(packet));
+    }
+
+    // Otherwise, we are no longer initializing.
+    puzzle_state_ = picked_up ? PuzzleState::Incorrect : PuzzleState::Correct;
+    lock.lock();
   }
 
-  if (unknown) {
-    // Ask for the state.
-    sent_get_state_ = true;
-    Puzzle::Header packet{Puzzle::Header::kTypeGetState};
-    Radio::Send(unknown, &packet, sizeof(packet));
-    return;
+  if (!sending_) {
+    lock.unlock();
+    Radio::Listen();
+    lock.lock();
   }
 
-  // Otherwise, we are no longer initializing.
-  puzzle_state_ = picked_up ? PuzzleState::Incorrect : PuzzleState::Correct;
+  if (!outstanding_irq_) {
+    task_->pause();
+  }
 }
 
 void pause() {
@@ -222,6 +249,7 @@ void restart() {
   if (node_count_ > 0) {
     puzzle_state_ = PuzzleState::Initializing;
     node_expected_ = 0;
+    sending_ = false;
     sent_get_state_ = false;
 
     task_->start();

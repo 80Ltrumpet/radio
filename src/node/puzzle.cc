@@ -1,5 +1,6 @@
 #include "puzzle.h"
 
+#include "atomic.h"
 #include "pickup.h"
 #include "radio.h"
 #include "scheduler.h"
@@ -8,33 +9,56 @@ namespace {
 
 TaskHandle task_{};
 Radio::FifoBuffer fifo_buffer_{};
+bool outstanding_irq_{};
 bool pickup_{};
+bool prev_pickup_{};  // Last pickup state sent
+bool sending_{};
 
 void on_packet_sent() {
+  outstanding_irq_ = true;
+  sending_ = false;
+
   // Immediately start listening after sending a packet.
   Radio::Listen();
   task_->start();
 }
 
 void on_payload_ready([[maybe_unused]] int8_t rssi) {
+  outstanding_irq_ = true;
   // TODO: Delay sending, not receiving.
-  task_->start(50);
+  task_->start(20);
 }
 
-void on_pickup([[maybe_unused]] bool is_picked_up) { task_->start(); }
+void on_pickup(bool is_picked_up) {
+  outstanding_irq_ = true;
+  pickup_ = is_picked_up;
+  task_->start();
+}
+
+void send_state_locked(AtomicLock& lock) {
+  using Puzzle::Header;
+  prev_pickup_ = pickup_;
+  sending_ = true;
+  lock.unlock();
+  Header packet{pickup_ ? Header::kTypePickUp : Header::kTypePutDown};
+  Radio::Send(0, &packet, sizeof(packet));
+  lock.lock();
+}
 
 void send_state() {
-  using Puzzle::Header;
-  pickup_ = Pickup::IsPickedUp();
-  Header packet{Pickup::IsPickedUp() ? Header::kTypePickUp
-                                     : Header::kTypePutDown};
-  Radio::Send(0, &packet, sizeof(packet));
+  AtomicLock lock{};
+  send_state_locked(lock);
 }
 
 void run() {
-  task_->pause();
+  AtomicLock lock{};
+  outstanding_irq_ = false;
+  // If we get a pickup event while sending the last one, don't interrupt it.
+  // This is extremely unlikely.
+  if (sending_) return;
+  lock.unlock();
 
-  if (Radio::Receive(&fifo_buffer_)) {
+  if (!Radio::IsListening() && Radio::Receive(&fifo_buffer_)) {
     auto bytes{fifo_buffer_.cbytes()};
     auto rhdr{reinterpret_cast<const Radio::Header*>(bytes)};
     auto phdr{reinterpret_cast<const Puzzle::Header*>(bytes + sizeof(*rhdr))};
@@ -42,7 +66,7 @@ void run() {
     switch (phdr->type) {
     case Puzzle::Header::kTypeGetState:
       send_state();
-      return;
+      break;
     case Puzzle::Header::kTypeLedControl: {
       auto led_ctrl{reinterpret_cast<const Puzzle::LedControlPacket*>(phdr)};
       // Broadcast LED control is for picked up nodes. Put down nodes should
@@ -71,12 +95,20 @@ void run() {
     }
   }
 
-  if (pickup_ != Pickup::IsPickedUp()) {
-    send_state();
-    return;
+  lock.lock();
+  if (!sending_) {
+    if (pickup_ != prev_pickup_) {
+      send_state_locked(lock);
+    } else {
+      lock.unlock();
+      Radio::Listen();
+      lock.lock();
+    }
   }
 
-  Radio::Listen();
+  if (!outstanding_irq_) {
+    task_->pause();
+  }
 }
 
 }  // namespace
@@ -84,7 +116,7 @@ void run() {
 namespace Puzzle {
 
 void Init() {
-  task_ = Scheduler::AddTask({"puzzle", run});
+  task_ = Scheduler::AddTask({"puzzle", run, 20});
   Radio::SetClient({on_payload_ready, on_packet_sent});
   Pickup::SetListener({on_pickup});
 }
