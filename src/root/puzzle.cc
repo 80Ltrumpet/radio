@@ -209,10 +209,10 @@ void run() {
       lock.unlock();
       Puzzle::Header packet{Puzzle::Header::kTypeGetState};
       Radio::Send(unknown, &packet, sizeof(packet));
+    } else {
+      // Otherwise, we are no longer initializing.
+      puzzle_state_ = picked_up ? PuzzleState::Incorrect : PuzzleState::Correct;
     }
-
-    // Otherwise, we are no longer initializing.
-    puzzle_state_ = picked_up ? PuzzleState::Incorrect : PuzzleState::Correct;
     lock.lock();
   }
 
