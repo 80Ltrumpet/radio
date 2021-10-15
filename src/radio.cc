@@ -219,8 +219,10 @@ uint8_t GetAddress() { return address_; }
 
 void SetClient(Client&& client) { client_ = static_cast<Client&&>(client); }
 
+bool IsListening() { return (op_mode_ & Bits::Mode) == Bits::ModeRx; }
+
 void Listen() {
-  if (address_ == kAddrInvalid || (op_mode_ & Bits::Mode) == Bits::ModeRx) {
+  if (address_ == kAddrInvalid || IsListening()) {
     return;
   }
   set_op_mode(Bits::ModeRx);

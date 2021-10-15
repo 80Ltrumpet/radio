@@ -76,9 +76,10 @@ void Run() {
       }
       // We are not spinning if a task is run.
       spinning = false;
+      auto until{task.until};
       task.runner();
-      // The task may pause itself while running.
-      if (task.until != Task::kPause) {
+      // The task may pause or reschedule itself while running.
+      if (task.until != Task::kPause && task.until == until) {
         task.until = Timer::Millis() + task.period;
       }
     }

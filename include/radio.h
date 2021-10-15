@@ -68,6 +68,7 @@ uint8_t GetAddress();
 
 void SetClient(Client&& client);
 
+bool IsListening();
 void Listen();
 void Standby();
 

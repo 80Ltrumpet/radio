@@ -154,7 +154,7 @@ void handle_putdown(uint8_t node) {
 void run() {
   task_->pause();
 
-  if (Radio::Receive(&fifo_buffer_)) {
+  if (!Radio::IsListening() && Radio::Receive(&fifo_buffer_)) {
     auto bytes{fifo_buffer_.cbytes()};
     auto rhdr{reinterpret_cast<const Radio::Header*>(bytes)};
     auto phdr{reinterpret_cast<const Puzzle::Header*>(bytes + sizeof(*rhdr))};
@@ -167,8 +167,9 @@ void run() {
       handle_pickup(rhdr->src);
       return;
     }
-    Radio::Listen();
   }
+
+  Radio::Listen();
 
   if (puzzle_state_ != PuzzleState::Initializing) return;
 
@@ -197,7 +198,6 @@ void run() {
 
   // Otherwise, we are no longer initializing.
   puzzle_state_ = picked_up ? PuzzleState::Incorrect : PuzzleState::Correct;
-  Radio::Listen();
 }
 
 void pause() {
@@ -207,6 +207,10 @@ void pause() {
 }
 
 void restart() {
+  // The relay should be initially in its "normal" state (NO open; NC closed).
+  relay_.set();
+  relay_.out();
+
   // Parse the node order from EEPROM. All node addresses must be in
   // the range [1, kMaxNodes]. Initialize node states, too.
   Eeprom::Read(Eeprom::Data::NodeOrder, node_order_);
@@ -221,7 +225,6 @@ void restart() {
     sent_get_state_ = false;
 
     task_->start();
-    Radio::Listen();
   }
 }
 
@@ -230,10 +233,6 @@ void restart() {
 namespace Puzzle {
 
 void Init() {
-  // The relay should be initially in its "normal" state (NO open; NC closed).
-  relay_.set();
-  relay_.out();
-
   task_ = Scheduler::AddTask({"puzzle", run, 0, Task::kPause});
   Radio::SetClient({on_payload_ready, on_packet_sent});
   restart();
