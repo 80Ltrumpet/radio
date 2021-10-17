@@ -9,6 +9,7 @@
 #include "eeprom.h"
 #include "gpio.h"
 #include "radio.h"
+#include "relay.h"
 #include "scheduler.h"
 
 enum class NodeState : uint8_t {
@@ -25,8 +26,6 @@ enum class PuzzleState : uint8_t {
 };
 
 namespace {
-
-Gpio relay_{PINE, 4};
 
 TaskHandle task_{};
 Radio::FifoBuffer fifo_buffer_{};
@@ -114,7 +113,7 @@ void handle_pickup(uint8_t node) {
       ++node_expected_;
       if (node_expected_ >= node_count_) {
         puzzle_state_ = PuzzleState::Solved;
-        relay_.clear();
+        Relay::SwitchOn();
       }
     } else {
       puzzle_state_ = PuzzleState::Incorrect;
@@ -152,7 +151,8 @@ void handle_putdown(uint8_t node) {
     if (all_down) {
       node_expected_ = 0;
       puzzle_state_ = PuzzleState::Correct;
-      relay_.set();
+      // Hide the solution after 45 seconds.
+      Relay::SwitchOff(45000);
     }
     break;
   }
@@ -234,9 +234,7 @@ void pause() {
 }
 
 void restart() {
-  // The relay should be initially in its "normal" state (NO open; NC closed).
-  relay_.set();
-  relay_.out();
+  Relay::SwitchOff();
 
   // Parse the node order from EEPROM. All node addresses must be in
   // the range [1, kMaxNodes]. Initialize node states, too.
@@ -327,9 +325,6 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
       order[i] = Radio::kAddrInvalid;
     }
     Eeprom::Update(Eeprom::Data::NodeOrder, order);
-  } else if (strcmp(argv[1], "toggle") == 0) {
-    // Cheat code. :)
-    relay_.toggle();
   } else {
 usage:
     puts(
