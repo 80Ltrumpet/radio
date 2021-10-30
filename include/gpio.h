@@ -16,6 +16,8 @@ class Gpio final {
   inline void clear() const { portx() &= ~mask_; }
   inline void toggle() const { portx() ^= mask_; }
 
+  inline bool is_set() const { return portx() & mask_; }
+
  private:
   inline constexpr volatile uint8_t& pinx() const { return *pinx_; }
   inline constexpr volatile uint8_t& ddrx() const { return *(pinx_ + 1); }

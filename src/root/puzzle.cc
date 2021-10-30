@@ -309,6 +309,9 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
       case PuzzleState::Solved:
         puts("SOLVED");
       }
+      if (Relay::IsOn()) {
+        puts("Solution is active.");
+      }
     }
   } else if (strcmp(argv[1], "order") == 0) {
     uint8_t order[kMaxNodes];
@@ -325,10 +328,12 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
       order[i] = Radio::kAddrInvalid;
     }
     Eeprom::Update(Eeprom::Data::NodeOrder, order);
+  } else if (strcmp(argv[1], "solve") == 0) {
+    Relay::SwitchOn();
   } else {
 usage:
     puts(
-        "Usage: puzzle pause | restart | status\n"
+        "Usage: puzzle pause | restart | solve | status\n"
         "              order ADDR...");
   }
 }

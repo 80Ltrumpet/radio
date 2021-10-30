@@ -9,4 +9,6 @@ void Init();
 void SwitchOn();
 void SwitchOff(uint16_t delay_ms = 0);
 
+bool IsOn();
+
 }

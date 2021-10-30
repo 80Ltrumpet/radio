@@ -31,4 +31,6 @@ void SwitchOn() { control_.clear(); }
 
 void SwitchOff(uint16_t delay_ms) { task_->start(delay_ms); }
 
+bool IsOn() { return !control_.is_set(); }
+
 }
