@@ -1,6 +1,7 @@
 # This makefile was created from scratch based on verbose output from the
 # Arduino IDE.
 
+SHELL := cmd
 .DEFAULT_GOAL := all
 
 AVR_TOOLS := "C:/Arduino/hardware/tools/avr"
