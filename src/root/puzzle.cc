@@ -139,8 +139,11 @@ void handle_putdown(uint8_t node) {
     break;
   case PuzzleState::Incorrect:
   case PuzzleState::Solved: {
+    // In the Incorrect state, do not require the first node to be put down to
+    // transition back to the correct state.
+    uint8_t start{puzzle_state_ == PuzzleState::Incorrect ? 1 : 0};
     bool all_down{true};
-    for (uint8_t i{}; i < node_count_; ++i) {
+    for (uint8_t i{start}; i < node_count_; ++i) {
       if (const auto& state{node_state_[node_order_[i] - 1]};
           state != NodeState::PutDown) {
         all_down = false;
@@ -149,10 +152,12 @@ void handle_putdown(uint8_t node) {
     }
 
     if (all_down) {
+      if (puzzle_state_ == PuzzleState::Solved) {
+        // Hide the solution after 45 seconds.
+        Relay::SwitchOff(45000);
+      }
       node_expected_ = 0;
       puzzle_state_ = PuzzleState::Correct;
-      // Hide the solution after 45 seconds.
-      Relay::SwitchOff(45000);
     }
     break;
   }
