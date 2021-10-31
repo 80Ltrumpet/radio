@@ -155,8 +155,10 @@ void handle_putdown(uint8_t node) {
       if (puzzle_state_ == PuzzleState::Solved) {
         // Hide the solution after 45 seconds.
         Relay::SwitchOff(45000);
+        node_expected_ = 0;
+      } else {
+        node_expected_ = node_state_[node_order_[0] - 1] == NodeState::PickedUp ? 1 : 0;
       }
-      node_expected_ = 0;
       puzzle_state_ = PuzzleState::Correct;
     }
     break;
