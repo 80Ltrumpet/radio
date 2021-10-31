@@ -5,17 +5,61 @@
 #include "gpio.h"
 #include "scheduler.h"
 
+enum class RunMode {
+  None,
+  Off,
+  FlickerOn,
+};
+
 namespace {
 
 Gpio control_{PINE, 4};
 TaskHandle task_{};
+auto run_mode_{RunMode::None};
+uint8_t flicker_count_{};
 
-void run() {
+void run_off() {
   control_.set();
   task_->pause();
+  run_mode_ = RunMode::None;
 }
 
+void run_flicker_on() {
+  constexpr uint8_t kFlickerEnd{2 * 7};
+  constexpr uint16_t kFlickerPeriod{50};
+
+  if (flicker_count_ < kFlickerEnd) {
+    if (flicker_count_++ & 1) {
+      control_.set();
+    } else {
+      control_.clear();
+    }
+    if (flicker_count_ < kFlickerEnd) {
+      task_->start(((flicker_count_ >> 1) + 1) * kFlickerPeriod);
+    }
+  }
+
+  if (flicker_count_ >= kFlickerEnd) {
+    run_mode_ = RunMode::None;
+    task_->pause();
+  }
 }
+
+void run() {
+  switch (run_mode_) {
+  case RunMode::Off:
+    run_off();
+    break;
+  case RunMode::FlickerOn:
+    run_flicker_on();
+    break;
+  default:
+    task_->pause();
+    break;
+  }
+}
+
+}  // namespace
 
 namespace Relay {
 
@@ -27,10 +71,21 @@ void Init() {
   task_ = Scheduler::AddTask({"relay", run, 0, Task::kPause});
 }
 
-void SwitchOn() { control_.clear(); }
+void SwitchOn() {
+  control_.clear();
+}
 
-void SwitchOff(uint16_t delay_ms) { task_->start(delay_ms); }
+void SwitchOff(uint16_t delay_ms) {
+  run_mode_ = RunMode::Off;
+  task_->start(delay_ms);
+}
+
+void FlickerOn() {
+  run_mode_ = RunMode::FlickerOn;
+  flicker_count_ = 0;
+  task_->start();
+}
 
 bool IsOn() { return !control_.is_set(); }
 
-}
+}  // namespace Relay

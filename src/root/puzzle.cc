@@ -113,7 +113,7 @@ void handle_pickup(uint8_t node) {
       ++node_expected_;
       if (node_expected_ >= node_count_) {
         puzzle_state_ = PuzzleState::Solved;
-        Relay::SwitchOn();
+        Relay::FlickerOn();
       }
     } else {
       puzzle_state_ = PuzzleState::Incorrect;
