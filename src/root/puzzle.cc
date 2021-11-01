@@ -336,7 +336,7 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
     }
     Eeprom::Update(Eeprom::Data::NodeOrder, order);
   } else if (strcmp(argv[1], "solve") == 0) {
-    Relay::SwitchOn();
+    Relay::FlickerOn();
   } else {
 usage:
     puts(

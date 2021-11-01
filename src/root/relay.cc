@@ -25,8 +25,9 @@ void run_off() {
 }
 
 void run_flicker_on() {
-  constexpr uint8_t kFlickerEnd{2 * 7};
-  constexpr uint16_t kFlickerPeriod{50};
+  constexpr uint8_t kFlickerEnd{2 * 5};
+  constexpr uint16_t kInitialFlickerPeriod{50};
+  constexpr uint16_t kFlickerPeriodIncrement{25};
 
   if (flicker_count_ < kFlickerEnd) {
     if (flicker_count_++ & 1) {
@@ -34,12 +35,10 @@ void run_flicker_on() {
     } else {
       control_.clear();
     }
-    if (flicker_count_ < kFlickerEnd) {
-      task_->start(((flicker_count_ >> 1) + 1) * kFlickerPeriod);
-    }
-  }
-
-  if (flicker_count_ >= kFlickerEnd) {
+    task_->start((flicker_count_ >> 1) * kFlickerPeriodIncrement +
+                  kInitialFlickerPeriod);
+  } else {
+    control_.clear();
     run_mode_ = RunMode::None;
     task_->pause();
   }
@@ -71,9 +70,7 @@ void Init() {
   task_ = Scheduler::AddTask({"relay", run, 0, Task::kPause});
 }
 
-void SwitchOn() {
-  control_.clear();
-}
+void SwitchOn() { control_.clear(); }
 
 void SwitchOff(uint16_t delay_ms) {
   run_mode_ = RunMode::Off;
