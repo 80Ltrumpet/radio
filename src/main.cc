@@ -9,8 +9,10 @@
 #include "spi.h"
 #include "timer.h"
 #include "twi.h"
+#include "watchdog.h"
 
 int main() {
+  Watchdog::Init();
   Power::Init();
 
   Led::Init(true);

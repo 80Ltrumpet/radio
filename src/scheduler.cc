@@ -4,6 +4,7 @@
 
 #include "power.h"
 #include "timer.h"
+#include "watchdog.h"
 
 // Internal task struct
 struct ScheduledTask final : public TaskInterface {
@@ -59,9 +60,14 @@ void Run() {
   // If no tasks are run for at least 5 milliseconds, go to sleep.
   constexpr uint64_t kSpinTimeoutUs{5000};
   auto spin_us{Timer::Micros() + kSpinTimeoutUs};
+
+  // All scheduled tasks should complete within the watchdog interval.
+  Watchdog::Start();
   for (;;) {
     bool spinning{true};
     auto next_until{Task::kPause};
+
+    Watchdog::Kick();
     for (uint8_t i{}; i < get_task_count(); ++i) {
       auto& task{tasks_[i]};
       // Skip tasks that are undefined, paused, or need to wait.

@@ -5,6 +5,7 @@
 
 #include "atomic.h"
 #include "led.h"
+#include "watchdog.h"
 
 namespace {
 
@@ -116,12 +117,16 @@ void Sleep(uint16_t sleep_ms) {
   // Turn off the LED while asleep.
   Led::Off();
 
+  Watchdog::Pause();
+
   // Enable the Idle sleep mode and execute the sleep instruction.
   SMCR = _BV(SE);
   __asm__ __volatile__(
       "sleep"
       "\n\t" ::);
   SMCR = 0;
+
+  Watchdog::Resume();
 
   Led::On();
 

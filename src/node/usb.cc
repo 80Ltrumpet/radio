@@ -4,7 +4,6 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
-#include <avr/wdt.h>
 #include <stdio.h>
 
 #include "atomic.h"
@@ -12,6 +11,7 @@
 #include "cdc_types.h"
 #include "console.h"
 #include "usb_types.h"
+#include "watchdog.h"
 
 // Interface indices
 enum : uint8_t {
@@ -110,7 +110,6 @@ PROGMEM const struct {
 static_assert(sizeof(kConfiguration_P) == 67,
               "USB configuration blob has an unexpected size");
 
-uint8_t wdtcsr_save_{};
 uint8_t configuration_{};
 CdcLineInfo cdc_line_info_{};
 
@@ -476,15 +475,9 @@ bool handle_cdc_acm_interface_request(const UsbSetupData& setup) {
           // Store the boot key.
           *p_magic_key = Bootloader::kMagicKey;
 
-          // Save the watchdog state in case the reset is aborted.
-          wdtcsr_save_ = WDTCSR;
-          wdt_enable(WDTO_120MS);
+          Watchdog::StartHighPriority();
         } else if (*p_magic_key == Bootloader::kMagicKey) {
-          // If the data rate was set to something besides 1200 bps, cancel
-          // the watchdog.
-          wdt_reset();
-          WDTCSR |= _BV(WDCE) | _BV(WDE);
-          WDTCSR = wdtcsr_save_;
+          Watchdog::StopHighPriority();
 
           // If a backup was necessary (see above), restore it.
           if (p_boot_key != p_ram_end && p_magic_key != p_ram_end) {
