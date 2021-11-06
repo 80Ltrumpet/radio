@@ -117,6 +117,13 @@ void handle_pickup(uint8_t node) {
       }
     } else {
       puzzle_state_ = PuzzleState::Incorrect;
+      // We may have received a repeated pick-up.
+      for (uint8_t picked_up{}; picked_up < node_expected_; ++picked_up) {
+        if (node == node_order_[picked_up]) {
+          puzzle_state_ = PuzzleState::Correct;
+          break;
+        }
+      }
     }
   }
 
@@ -130,11 +137,18 @@ void handle_putdown(uint8_t node) {
   switch (puzzle_state_) {
   case PuzzleState::Correct:
     if (node_expected_ == 0) {
-      // This should be impossible.
+      // This is possible if we received a repeated put-down.
     } else if (node == node_order_[node_expected_ - 1]) {
       --node_expected_;
     } else {
       puzzle_state_ = PuzzleState::Incorrect;
+      // We may have received a put-down from a reset node.
+      for (uint8_t put_down{node_expected_}; put_down < node_count_; ++put_down) {
+        if (node == node_order_[put_down]) {
+          puzzle_state_ = PuzzleState::Correct;
+          break;
+        }
+      }
     }
     break;
   case PuzzleState::Incorrect:
