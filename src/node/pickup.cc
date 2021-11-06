@@ -8,6 +8,7 @@
 #include "lsm6dsox.h"
 #include "ring_buffer.h"
 #include "scheduler.h"
+#include "timer.h"
 #include "twi.h"
 
 using namespace lsm6dsox;
@@ -40,6 +41,9 @@ RingBuffer<Vec3<float>, 3> gyro_buffer_{};
 bool outstanding_irq_{};
 bool output_{};
 Pickup::Listener listener_{};
+uint64_t start_ms_{};
+bool last_notification_{};
+bool init_notification_{true};
 
 void configure_imu() {
   uint8_t wbuf[4];
@@ -75,9 +79,7 @@ void configure_imu() {
   imu_.write(Reg::CTRL1_XL, wbuf, 2);
 }
 
-inline constexpr float abs(float x) {
-  return x >= 0.0f ? x : -x;
-}
+inline constexpr float abs(float x) { return x >= 0.0f ? x : -x; }
 
 // Stores the accumulated sum of FIFO data in gyro_vec_.
 void accumulate_gyro(const FifoData& data) {
@@ -138,13 +140,18 @@ bool is_gyro_twitching() {
   return false;
 }
 
-void pick_up(bool is_picked_up) {
-  if (output_ == is_picked_up) return;
-  output_ = is_picked_up;
-
-  if (!listener_) return;
-  listener_.on_pickup(is_picked_up);
+void notify_listener_if_needed() {
+  // Short-circuit the Timer::Millis() call with additional init_notification_
+  // check.
+  if (!listener_ || (init_notification_ && Timer::Millis() < start_ms_)) return;
+  if (init_notification_ || last_notification_ != output_) {
+    init_notification_ = false;
+    last_notification_ = output_;
+    listener_.on_pickup(output_);
+  }
 }
+
+void pick_up(bool is_picked_up) { output_ = is_picked_up; }
 
 void run() {
   {
@@ -155,46 +162,48 @@ void run() {
   const bool fifo_ready{imu_.read(Reg::FIFO_STATUS2) & Bits::COUNTER_BDR_IA};
 
   switch (state_) {
-    case State::Inactive:
-      if (!asleep) {
-        state_ = State::OnlyGyro;
-        start_gyro_loop();
-      }
-      break;
+  case State::Inactive:
+    if (!asleep) {
+      state_ = State::OnlyGyro;
+      start_gyro_loop();
+    }
+    break;
 
-    case State::OnlyGyro:
-      if (fifo_ready) {
-        get_gyro_mean();
-        if (gyro_buffer_.full()) {
-          if (is_gyro_twitching()) {
-            pick_up(true);
-          } else {
-            state_ = State::ActiveGyro;
-            imu_.write(Reg::TAP_CFG2,
-                       Bits::INTERRUPTS_ENABLE | Bits::INACT_EN_G_SLEEP);
-          }
-        }
-        gyro_buffer_.push_back(gyro_vec_);
-      }
-      break;
-
-    case State::ActiveGyro:
-      if (asleep) {
-        pick_up(false);
-        state_ = State::Inactive;
-        stop_gyro_loop();
-      } else if (fifo_ready) {
-        get_gyro_mean();
-        if (gyro_buffer_.full() && is_gyro_twitching()) {
+  case State::OnlyGyro:
+    if (fifo_ready) {
+      get_gyro_mean();
+      if (gyro_buffer_.full()) {
+        if (is_gyro_twitching()) {
           pick_up(true);
-          state_ = State::OnlyGyro;
-          // Clear INTERRUPTS_ENABLE.
-          imu_.write(Reg::TAP_CFG2, 0);
+        } else {
+          state_ = State::ActiveGyro;
+          imu_.write(Reg::TAP_CFG2,
+                     Bits::INTERRUPTS_ENABLE | Bits::INACT_EN_G_SLEEP);
         }
-        gyro_buffer_.push_back(gyro_vec_);
       }
-      break;
+      gyro_buffer_.push_back(gyro_vec_);
+    }
+    break;
+
+  case State::ActiveGyro:
+    if (asleep) {
+      pick_up(false);
+      state_ = State::Inactive;
+      stop_gyro_loop();
+    } else if (fifo_ready) {
+      get_gyro_mean();
+      if (gyro_buffer_.full() && is_gyro_twitching()) {
+        pick_up(true);
+        state_ = State::OnlyGyro;
+        // Clear INTERRUPTS_ENABLE.
+        imu_.write(Reg::TAP_CFG2, 0);
+      }
+      gyro_buffer_.push_back(gyro_vec_);
+    }
+    break;
   }
+
+  notify_listener_if_needed();
 
   // Let the task be interrupt-driven.
   AtomicLock lock{};
@@ -212,7 +221,7 @@ void Init() {
   if (imu_.read(Reg::WHO_AM_I) != Reg::Reset::WHO_AM_I) {
     return;
   }
-  
+
   task_ = Scheduler::AddTask({"pickup", run, 0, Task::kPause});
 
   // Configure the external interrupt (rising edge).
@@ -220,6 +229,8 @@ void Init() {
   EIMSK |= _BV(INT3);
 
   configure_imu();
+
+  start_ms_ = Timer::Millis() + 1000;
 }
 
 bool IsPickedUp() { return output_; }
