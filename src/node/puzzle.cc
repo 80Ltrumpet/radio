@@ -5,13 +5,39 @@
 #include "radio.h"
 #include "scheduler.h"
 
+class Tristate final {
+ public:
+  constexpr Tristate() : state_{State::Empty} {}
+  constexpr Tristate(bool b) : state_{b ? State::True : State::False} {}
+
+  operator bool() const { return state_ == State::True; }
+  constexpr bool empty() const { return state_ == State::Empty; }
+
+  constexpr bool operator==(const Tristate& other) const {
+    return state_ == other.state_;
+  }
+
+  constexpr bool operator!=(const Tristate& other) const {
+    return state_ != other.state_;
+  }
+
+ private:
+  enum class State {
+    Empty,
+    False,
+    True,
+  };
+
+  State state_;
+};
+
 namespace {
 
 TaskHandle task_{};
 Radio::FifoBuffer fifo_buffer_{};
 bool outstanding_irq_{};
-bool pickup_{};
-bool prev_pickup_{};  // Last pickup state sent
+Tristate pickup_{};
+Tristate prev_pickup_{};  // Last pickup state sent
 bool sending_{};
 
 void on_packet_sent() {
