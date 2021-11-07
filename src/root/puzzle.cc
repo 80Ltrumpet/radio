@@ -12,6 +12,11 @@
 #include "relay.h"
 #include "scheduler.h"
 
+enum class LogMode : uint8_t {
+  Off,
+  On,
+};
+
 enum class NodeState : uint8_t {
   Unknown,
   PutDown,
@@ -43,6 +48,8 @@ bool outstanding_irq_{};
 bool sending_{};
 bool sent_get_state_{};
 
+LogMode log_mode_{LogMode::On};
+
 void on_packet_sent() {
   outstanding_irq_ = true;
   sending_ = false;
@@ -63,6 +70,22 @@ void on_payload_ready([[maybe_unused]] int8_t rssi) {
   outstanding_irq_ = true;
   // TODO: Delay sending, not receiving.
   task_->start(20);
+}
+
+void print_puzzle_state() {
+  switch (puzzle_state_) {
+  case PuzzleState::Initializing:
+    puts("INIT");
+    break;
+  case PuzzleState::Incorrect:
+    puts("INCORRECT");
+    break;
+  case PuzzleState::Correct:
+    puts("CORRECT");
+    break;
+  case PuzzleState::Solved:
+    puts("SOLVED");
+  }
 }
 
 // Sends an LED control packet based on the current puzzle state. If node is
@@ -128,6 +151,13 @@ void handle_pickup(uint8_t node) {
   }
 
   update_leds(puzzle_state_ == prev_puzzle_state ? node : 0);
+
+  if (log_mode_ == LogMode::On) {
+    printf("\r%u^\n", node);
+    if (puzzle_state_ != prev_puzzle_state) {
+      print_puzzle_state();
+    }
+  }
 }
 
 void handle_putdown(uint8_t node) {
@@ -143,7 +173,8 @@ void handle_putdown(uint8_t node) {
     } else {
       puzzle_state_ = PuzzleState::Incorrect;
       // We may have received a put-down from a reset node.
-      for (uint8_t put_down{node_expected_}; put_down < node_count_; ++put_down) {
+      for (uint8_t put_down{node_expected_}; put_down < node_count_;
+           ++put_down) {
         if (node == node_order_[put_down]) {
           puzzle_state_ = PuzzleState::Correct;
           break;
@@ -171,7 +202,8 @@ void handle_putdown(uint8_t node) {
         Relay::SwitchOff(45000);
         node_expected_ = 0;
       } else {
-        node_expected_ = node_state_[node_order_[0] - 1] == NodeState::PickedUp ? 1 : 0;
+        node_expected_ =
+            node_state_[node_order_[0] - 1] == NodeState::PickedUp ? 1 : 0;
       }
       puzzle_state_ = PuzzleState::Correct;
     }
@@ -180,6 +212,13 @@ void handle_putdown(uint8_t node) {
   }
 
   update_leds(puzzle_state_ == prev_puzzle_state ? node : 0);
+
+  if (log_mode_ == LogMode::On) {
+    printf("\r%u_\n", node);
+    if (puzzle_state_ != prev_puzzle_state) {
+      print_puzzle_state();
+    }
+  }
 }
 
 void run() {
@@ -300,7 +339,9 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
     goto usage;
   }
 
-  if (strcmp(argv[1], "pause") == 0) {
+  if (strcmp(argv[1], "log") == 0) {
+    log_mode_ = log_mode_ == LogMode::Off ? LogMode::On : LogMode::Off;
+  } else if (strcmp(argv[1], "pause") == 0) {
     pause();
   } else if (strcmp(argv[1], "restart") == 0) {
     restart();
@@ -317,19 +358,7 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
                                                : '?';
         printf("%u%c%c", n, s, i == node_count_ - 1 ? '\n' : ' ');
       }
-      switch (puzzle_state_) {
-      case PuzzleState::Initializing:
-        puts("INIT");
-        break;
-      case PuzzleState::Incorrect:
-        puts("INCORRECT");
-        break;
-      case PuzzleState::Correct:
-        puts("CORRECT");
-        break;
-      case PuzzleState::Solved:
-        puts("SOLVED");
-      }
+      print_puzzle_state();
       if (Relay::IsOn()) {
         puts("Solution is active.");
       }
@@ -354,7 +383,7 @@ void PuzzleCommand::CommandHandler(int argc, const char* argv[]) {
   } else {
 usage:
     puts(
-        "Usage: puzzle pause | restart | solve | status\n"
+        "Usage: puzzle log | pause | restart | solve | status\n"
         "              order ADDR...");
   }
 }
