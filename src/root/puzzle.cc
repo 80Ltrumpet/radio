@@ -78,7 +78,7 @@ void update_leds(uint8_t node) {
     switch (puzzle_state_) {
     case PuzzleState::Correct:
       led_ctrl.set_color({60, 0, 80});
-      led_ctrl.set_pattern(Rgb::Pattern::SineWhite);
+      led_ctrl.set_pattern(Rgb::Pattern::Throb);
       led_ctrl.set_period(2000);
       led_ctrl.set_transition_period(1000);
       break;
