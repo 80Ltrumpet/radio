@@ -4,7 +4,7 @@
 SHELL := cmd
 .DEFAULT_GOAL := all
 
-AVR_TOOLS := "C:/Arduino/hardware/tools/avr"
+AVR_TOOLS := "C:/Users/Andrew Lehmer/AppData/Local/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7"
 
 include build/local.mk
 
